@@ -55,14 +55,20 @@ servers:
 tags:
   - name: Health
     description: Health check endpoints
+  - name: Registration
+    description: User registration endpoints (signup)
   - name: Onboarding
-    description: User onboarding with KYC document upload
+    description: Profile completion and KYC document upload after registration
   - name: Authentication
     description: Login, logout, and token management
   - name: OTP
     description: Phone verification via Twilio
+  - name: Skills
+    description: Public skills data for construction trades
   - name: Profile
     description: User profile management
+  - name: Tradesperson Profile
+    description: Tradesperson-specific profile management (qualifications, license, availability, rates)
   - name: Admin Verification
     description: Admin endpoints for KYC verification
   - name: Search
@@ -123,123 +129,25 @@ paths:
                       storage:
                         type: boolean
 
-  /onboarding/worker:
+  /register/company:
     post:
       tags:
-        - Onboarding
-      summary: Onboard a tradesperson/worker
+        - Registration
+      summary: Register a new company (signup)
       description: |
-        Register a new tradesperson with KYC document upload. Documents are stored in S3 and queued for manual admin review.
+        Minimal company registration endpoint. Creates a new company account with basic information only.
+        After signup, users must complete their profile via `/onboarding/company` endpoint.
 
-        **Required documents:**
-        - `kyc_document`: Government-issued ID, passport, or driver's license (max 5MB)
+        **Flow:**
+        1. User signs up with minimal info (this endpoint)
+        2. User completes profile with address, size, logo, etc. (`/onboarding/company`)
+        3. Admin reviews and approves (`/admin/verify/{userId}`)
 
-        **Optional documents:**
-        - `selfie`: Selfie photo for identity verification (max 2MB)
-        - `portfolio_images`: Up to 10 portfolio images (max 2MB each)
+        **Rate limit:** 3 requests per minute
       requestBody:
         required: true
         content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - first_name
-                - last_name
-                - email
-                - phone
-                - password
-                - password_confirmation
-                - skills
-                - city
-                - postcode
-                - kyc_document
-              properties:
-                first_name:
-                  type: string
-                  example: John
-                last_name:
-                  type: string
-                  example: Smith
-                email:
-                  type: string
-                  format: email
-                  example: john.smith@example.com
-                phone:
-                  type: string
-                  pattern: ^\+[1-9]\d{1,14}$
-                  example: '+447700900000'
-                password:
-                  type: string
-                  format: password
-                  minLength: 8
-                  example: Password123!
-                password_confirmation:
-                  type: string
-                  format: password
-                  example: Password123!
-                bio:
-                  type: string
-                  example: Experienced plumber with 15 years in the industry
-                skills:
-                  type: array
-                  items:
-                    type: string
-                  minItems: 1
-                  example: [Plumbing, Heating, Gas Safety]
-                hourly_rate:
-                  type: number
-                  format: float
-                  minimum: 0
-                  example: 45.00
-                city:
-                  type: string
-                  example: London
-                postcode:
-                  type: string
-                  example: SW1A 1AA
-                kyc_document:
-                  type: string
-                  format: binary
-                  description: Government-issued ID (PDF, JPG, PNG - max 5MB)
-                selfie:
-                  type: string
-                  format: binary
-                  description: Selfie photo (JPG, PNG - max 2MB)
-                portfolio_images:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
-                  maxItems: 10
-      responses:
-        '201':
-          description: Worker onboarded successfully, pending verification
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OnboardingResponse'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-        '429':
-          $ref: '#/components/responses/RateLimitError'
-
-  /onboarding/company:
-    post:
-      tags:
-        - Onboarding
-      summary: Onboard a company
-      description: |
-        Register a new company with optional KYC documents. Documents are stored in S3.
-
-        **Optional documents:**
-        - `company_registration`: Company registration certificate
-        - `insurance_certificate`: Public liability insurance
-        - `tax_document`: Tax/VAT registration
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
+          application/json:
             schema:
               type: object
               required:
@@ -250,74 +158,558 @@ paths:
                 - password
                 - password_confirmation
                 - company_name
-                - city
-                - postcode
+                - trading_name
+                - company_number
               properties:
                 first_name:
                   type: string
+                  maxLength: 255
                   example: Jane
+                  description: User's first name
                 last_name:
                   type: string
+                  maxLength: 255
                   example: Doe
+                  description: User's last name
                 email:
                   type: string
                   format: email
+                  maxLength: 255
                   example: jane.doe@company.com
+                  description: User's email (must be unique)
                 phone:
                   type: string
+                  maxLength: 20
                   example: '+447700900001'
+                  description: User's phone number (must be unique)
                 password:
                   type: string
                   format: password
                   minLength: 8
+                  example: Password123!@
+                  description: Must contain uppercase, lowercase, number, and special character
                 password_confirmation:
                   type: string
                   format: password
+                  example: Password123!@
+                  description: Must match password
                 company_name:
                   type: string
+                  maxLength: 255
                   example: ABC Construction Ltd
-                company_type:
+                  description: Legal company name
+                trading_name:
                   type: string
-                  enum: [limited, sole_trader, partnership, llp]
-                  example: limited
-                company_registration_number:
+                  maxLength: 255
+                  example: ABC Builders
+                  description: Trading name (DBA)
+                company_number:
                   type: string
-                  example: '12345678'
-                registered_address:
+                  maxLength: 50
+                  example: '01856488'
+                  description: Company registration number (must be unique)
+                vat_number:
                   type: string
-                  example: 123 Business Street
-                city:
-                  type: string
-                  example: London
-                postcode:
-                  type: string
-                  example: SW1A 1AA
-                company_email:
-                  type: string
-                  format: email
-                company_phone:
-                  type: string
-                company_website:
-                  type: string
-                  format: uri
-                description:
-                  type: string
-                company_registration:
-                  type: string
-                  format: binary
-                insurance_certificate:
-                  type: string
-                  format: binary
-                tax_document:
-                  type: string
-                  format: binary
+                  maxLength: 50
+                  nullable: true
+                  example: 'GB123456789'
+                  description: VAT registration number (optional)
       responses:
         '201':
-          description: Company onboarded successfully
+          description: Company registered successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OnboardingResponse'
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Registration successful
+                  user:
+                    type: object
+                    properties:
+                      uuid:
+                        type: string
+                        format: uuid
+                      email:
+                        type: string
+                        format: email
+                      user_type:
+                        type: string
+                        example: company
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /register/tradesperson:
+    post:
+      tags:
+        - Registration
+      summary: Register a new tradesperson (signup)
+      description: |
+        Minimal tradesperson registration endpoint. Creates a new tradesperson account with basic information only.
+        After signup, users verify their phone and complete their profile via `/onboarding/worker` endpoint.
+
+        **Flow:**
+        1. User signs up with minimal info (this endpoint)
+        2. User verifies phone via OTP
+        3. User logs in and completes profile (`/onboarding/worker`)
+
+        **Rate limit:** 3 requests per minute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - first_name
+                - last_name
+                - email
+                - phone
+                - password
+                - password_confirmation
+              properties:
+                first_name:
+                  type: string
+                  maxLength: 255
+                  example: John
+                  description: (Required) User's first name
+                last_name:
+                  type: string
+                  maxLength: 255
+                  example: Smith
+                  description: (Required) User's last name
+                email:
+                  type: string
+                  format: email
+                  maxLength: 255
+                  example: john.smith@example.com
+                  description: (Required) User's email (must be unique)
+                phone:
+                  type: string
+                  maxLength: 20
+                  example: '+447700900000'
+                  description: (Required) User's phone number (must be unique)
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: Password123!@
+                  description: (Required) Must contain uppercase, lowercase, number, and special character
+                password_confirmation:
+                  type: string
+                  format: password
+                  example: Password123!@
+                  description: (Required) Must match password
+      responses:
+        '201':
+          description: Tradesperson registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Registration successful
+                  user:
+                    type: object
+                    properties:
+                      uuid:
+                        type: string
+                        format: uuid
+                      email:
+                        type: string
+                        format: email
+                      user_type:
+                        type: string
+                        example: tradesperson
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /skills/construction:
+    get:
+      tags:
+        - Skills
+      summary: Get construction trade skills
+      description: |
+        Public endpoint that returns a categorized list of 160+ construction trade skills.
+        Used by frontend clients to populate skill selection dropdowns.
+
+        **Categories:**
+        - `common`: Common construction skills (69 skills)
+        - `specialized`: Specialized construction skills (44 skills)
+      responses:
+        '200':
+          description: Skills retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  skills:
+                    type: object
+                    properties:
+                      common:
+                        type: array
+                        items:
+                          type: string
+                        example: [General Labourer, Carpenter, Bricklayer, Plumber, Electrician]
+                      specialized:
+                        type: array
+                        items:
+                          type: string
+                        example: [Heritage Joiner, Industrial Electrician, BMS Engineer]
+                  total_count:
+                    type: integer
+                    example: 113
+
+  /onboarding/worker:
+    post:
+      tags:
+        - Onboarding
+      summary: Complete tradesperson profile (after registration)
+      description: |
+        Complete tradesperson profile with additional details after initial registration.
+        User must be authenticated and have already registered via `/register/tradesperson`.
+
+        **Profile completion steps (all optional):**
+        - Notification preferences (email, sms, push)
+        - Country of residence
+        - KYC verification (3 document types supported):
+          - `drivers_license`: Front + back images required
+          - `id_card`: Front image only
+          - `passport`: Bio page only
+        - Payroll company
+        - Terms & Conditions acceptance
+        - Bio and skills
+        - Portfolio images (up to 10)
+
+        **Note:** All fields are optional to support step-by-step profile completion.
+        After KYC upload, documents are queued for manual admin review.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                notification_preferences:
+                  type: object
+                  properties:
+                    email:
+                      type: boolean
+                      example: true
+                      description: (Optional) Enable email notifications
+                    sms:
+                      type: boolean
+                      example: true
+                      description: (Optional) Enable SMS notifications
+                    push:
+                      type: boolean
+                      example: true
+                      description: (Optional) Enable push notifications
+                  description: (Optional) Notification preferences
+                country:
+                  type: string
+                  maxLength: 100
+                  example: United Kingdom
+                  description: (Optional) Country of residence
+                bio:
+                  type: string
+                  maxLength: 1000
+                  nullable: true
+                  example: Experienced plumber with 15 years in the industry
+                  description: (Optional) Professional bio
+                skills:
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 100
+                  nullable: true
+                  example: [Plumbing, Heating, Gas Safety]
+                  description: (Optional) Skills array - use /skills/construction endpoint to get available skills
+                years_experience:
+                  type: integer
+                  minimum: 0
+                  maximum: 70
+                  nullable: true
+                  example: 15
+                  description: (Optional) Years of experience
+                city:
+                  type: string
+                  maxLength: 255
+                  nullable: true
+                  example: London
+                  description: (Optional) City
+                postcode:
+                  type: string
+                  maxLength: 10
+                  nullable: true
+                  example: SW1A 1AA
+                  description: (Optional) Postcode
+                kyc_document_type:
+                  type: string
+                  enum: [drivers_license, id_card, passport]
+                  nullable: true
+                  description: (Optional) Type of KYC document being uploaded
+                kyc_front_image:
+                  type: string
+                  format: binary
+                  description: (Required if kyc_document_type provided) Front image of KYC document (JPG/PNG - max 5MB)
+                kyc_back_image:
+                  type: string
+                  format: binary
+                  description: (Required if kyc_document_type is drivers_license) Back image of KYC document (JPG/PNG - max 5MB)
+                payroll_company:
+                  type: string
+                  maxLength: 255
+                  nullable: true
+                  example: Umbrella Co Ltd
+                  description: (Optional) Payroll company name
+                accept_terms:
+                  type: boolean
+                  nullable: true
+                  example: true
+                  description: (Optional) Accept terms and conditions. When true, triggers email verification
+                portfolio_images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  maxItems: 10
+                  description: (Optional) Portfolio images (JPG/PNG - max 5MB each, max 10 images)
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Profile updated successfully.
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      uuid:
+                        type: string
+                        format: uuid
+                      email:
+                        type: string
+                        format: email
+                      name:
+                        type: string
+                      type:
+                        type: string
+                        example: tradesperson
+                      tradesperson:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                          verification_status:
+                            type: string
+                            enum: [pending, in_review, verified, rejected]
+                          kyc_verification_status:
+                            type: string
+                            enum: [pending, verified, rejected]
+                          profile_completeness:
+                            type: integer
+                            minimum: 0
+                            maximum: 100
+                            example: 65
+                            description: Profile completion percentage (0-100)
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /onboarding/company:
+    post:
+      tags:
+        - Onboarding
+      summary: Complete company profile (after registration)
+      description: |
+        Complete company profile with full details after initial registration.
+        User must be authenticated and have already registered via `/register/company`.
+
+        **Required fields:**
+        - `company_size`: Company size bracket
+        - `registered_address`: Full registered address
+        - `city`: City
+        - `postcode`: Postcode
+        - `country`: Country
+
+        **Optional documents:**
+        - `company_registration`: Company registration certificate (PDF/JPG/PNG, max 5MB)
+        - `insurance_certificate`: Public liability insurance (PDF/JPG/PNG, max 5MB)
+        - `logo`: Company logo (JPG/PNG, max 2MB)
+
+        Sets verification status to 'in_review' after completion.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - company_size
+                - registered_address
+                - city
+                - postcode
+                - country
+              properties:
+                company_size:
+                  type: string
+                  enum: [1-10, 11-50, 51-100, 101-200, 201-500, 500+]
+                  example: '51-100'
+                  description: Company size bracket
+                registered_address:
+                  type: string
+                  maxLength: 500
+                  example: 123 Business Street
+                  description: Full registered business address
+                trading_address:
+                  type: string
+                  maxLength: 500
+                  nullable: true
+                  example: 456 Trading Estate
+                  description: Trading address if different from registered
+                city:
+                  type: string
+                  maxLength: 255
+                  example: London
+                county:
+                  type: string
+                  maxLength: 255
+                  nullable: true
+                  example: Greater London
+                postcode:
+                  type: string
+                  maxLength: 10
+                  example: SW1A 1AA
+                country:
+                  type: string
+                  maxLength: 255
+                  example: United Kingdom
+                description:
+                  type: string
+                  maxLength: 1000
+                  nullable: true
+                  example: Leading construction company specializing in commercial builds
+                  description: Company bio/description
+                company_type:
+                  type: string
+                  enum: [sole_trader, partnership, limited, plc]
+                  nullable: true
+                  example: limited
+                incorporation_date:
+                  type: string
+                  format: date
+                  nullable: true
+                  example: '2015-03-15'
+                company_email:
+                  type: string
+                  format: email
+                  nullable: true
+                  example: info@abcconstruction.com
+                company_phone:
+                  type: string
+                  maxLength: 20
+                  nullable: true
+                  example: '+442012345678'
+                website:
+                  type: string
+                  format: uri
+                  nullable: true
+                  example: https://www.abcconstruction.com
+                annual_turnover:
+                  type: number
+                  format: float
+                  minimum: 0
+                  nullable: true
+                  example: 5000000.00
+                services_offered:
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 255
+                  nullable: true
+                  example: [Construction, Renovation, Project Management]
+                specializations:
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 255
+                  nullable: true
+                  example: [Commercial Buildings, Residential, Infrastructure]
+                logo:
+                  type: string
+                  format: binary
+                  description: Company logo (JPG/PNG - max 2MB)
+                company_registration:
+                  type: string
+                  format: binary
+                  description: Company registration document (PDF/JPG/PNG - max 5MB)
+                insurance_certificate:
+                  type: string
+                  format: binary
+                  description: Insurance certificate (PDF/JPG/PNG - max 5MB)
+      responses:
+        '200':
+          description: Company profile completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Company profile completed successfully. Your profile is under review.
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      email:
+                        type: string
+                        format: email
+                      name:
+                        type: string
+                      type:
+                        type: string
+                        example: company
+                      company:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                          name:
+                            type: string
+                          verification_status:
+                            type: string
+                            example: in_review
+                          profile_completeness:
+                            type: integer
+                            example: 85
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a company or already onboarded
         '422':
           $ref: '#/components/responses/ValidationError'
 
@@ -578,7 +970,7 @@ paths:
       tags:
         - Profile
       summary: Get current user's profile
-      description: Get the authenticated user's full profile information
+      description: Get the authenticated user's full profile information including email, phone, profile image, and notification preferences
       security:
         - bearerAuth: []
       responses:
@@ -590,7 +982,46 @@ paths:
                 type: object
                 properties:
                   user:
-                    $ref: '#/components/schemas/User'
+                    type: object
+                    properties:
+                      uuid:
+                        type: string
+                        example: "9d4e7f12-3456-7890-abcd-ef1234567890"
+                      first_name:
+                        type: string
+                        example: John
+                      last_name:
+                        type: string
+                        example: Smith
+                      email:
+                        type: string
+                        format: email
+                        example: john.smith@example.com
+                      phone:
+                        type: string
+                        example: "+447700900000"
+                      user_type:
+                        type: string
+                        enum: [tradesperson, company, admin]
+                        example: tradesperson
+                      profile_image_url:
+                        type: string
+                        format: uri
+                        nullable: true
+                        example: /storage/profile_images/image.jpg
+                        description: URL to profile image or null if not set
+                      notification_preferences:
+                        type: object
+                        properties:
+                          email:
+                            type: boolean
+                            example: true
+                          sms:
+                            type: boolean
+                            example: true
+                          push:
+                            type: boolean
+                            example: true
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
@@ -624,71 +1055,89 @@ paths:
         '404':
           description: User not found
 
-  /profile/tradesperson:
+  /profile/user:
     put:
       tags:
         - Profile
-      summary: Update tradesperson profile
-      description: Update tradesperson profile information. Updates both User and Tradesperson data. Only accessible to authenticated tradesperson users.
+      summary: Update user profile
+      description: |
+        Update user profile information including name, email, phone, password, profile image, and notification preferences.
+        Available to all authenticated users regardless of role (tradesperson, company, admin).
+
+        **All fields are optional.** Can update any combination of fields in a single request.
+
+        **Password change:** To change password, include current_password, password, and password_confirmation fields.
+
+        **Profile image:** Upload new profile image (old image automatically deleted).
+
+        This endpoint handles ALL user-level data. For role-specific data, use:
+        - PUT /profile/tradesperson (for tradesperson-specific data)
+        - PUT /profile/company (for company-specific data)
       security:
         - bearerAuth: []
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
                 first_name:
                   type: string
                   maxLength: 255
+                  example: John
+                  description: (Optional) User's first name
                 last_name:
                   type: string
                   maxLength: 255
+                  example: Smith
+                  description: (Optional) User's last name
+                email:
+                  type: string
+                  format: email
+                  maxLength: 255
+                  example: john.smith@example.com
+                  description: (Optional) Email address - must be unique
                 phone:
                   type: string
                   maxLength: 20
-                bio:
+                  example: "+447700900000"
+                  description: (Optional) Phone number - must be unique
+                current_password:
                   type: string
-                  maxLength: 1000
-                  nullable: true
-                skills:
-                  type: array
-                  items:
-                    type: string
-                    maxLength: 255
-                  nullable: true
-                certifications:
-                  type: array
-                  items:
-                    type: string
-                    maxLength: 255
-                  nullable: true
-                years_experience:
-                  type: integer
-                  minimum: 0
-                  maximum: 70
-                  nullable: true
-                city:
+                  format: password
+                  example: OldPassword123!
+                  description: (Optional) Current password - required if changing password
+                password:
                   type: string
-                  maxLength: 255
-                  nullable: true
-                county:
+                  format: password
+                  minLength: 8
+                  example: NewPassword123!
+                  description: (Optional) New password - minimum 8 characters
+                password_confirmation:
                   type: string
-                  maxLength: 255
-                  nullable: true
-                postcode:
+                  format: password
+                  example: NewPassword123!
+                  description: (Optional) Password confirmation - required if changing password
+                profile_image:
                   type: string
-                  maxLength: 10
-                  nullable: true
-                service_radius_miles:
-                  type: integer
-                  minimum: 1
-                  maximum: 200
-                  nullable: true
+                  format: binary
+                  description: (Optional) Profile image file (JPG/PNG - max 5MB). Old image automatically deleted.
+                notification_preferences[email]:
+                  type: boolean
+                  example: true
+                  description: (Optional) Enable email notifications
+                notification_preferences[sms]:
+                  type: boolean
+                  example: true
+                  description: (Optional) Enable SMS notifications
+                notification_preferences[push]:
+                  type: boolean
+                  example: false
+                  description: (Optional) Enable push notifications
       responses:
         '200':
-          description: Profile updated successfully
+          description: User profile updated successfully
           content:
             application/json:
               schema:
@@ -696,9 +1145,109 @@ paths:
                 properties:
                   message:
                     type: string
-                    example: Profile updated successfully
+                    example: User profile updated successfully
                   user:
-                    $ref: '#/components/schemas/User'
+                    type: object
+                    description: Updated user object
+                  profile_image_url:
+                    type: string
+                    format: uri
+                    example: /storage/profile_images/image.jpg
+                    description: URL to profile image (only present if image was uploaded)
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          description: Validation error or current password incorrect
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Current password is incorrect
+                  errors:
+                    type: object
+
+  /profile/tradesperson:
+    get:
+      tags:
+        - Profile
+      summary: Get tradesperson profile
+      description: |
+        Get tradesperson-specific profile information.
+        Only accessible to authenticated tradesperson users.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Tradesperson profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tradesperson:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      user_id:
+                        type: integer
+                        example: 5
+                      bio:
+                        type: string
+                        nullable: true
+                        example: Experienced plumber with 20 years in the industry
+                      skills:
+                        type: array
+                        items:
+                          type: string
+                        nullable: true
+                        example: ["Plumbing", "Heating", "Gas Safety"]
+                      years_experience:
+                        type: integer
+                        nullable: true
+                        example: 20
+                      city:
+                        type: string
+                        nullable: true
+                        example: Manchester
+                      county:
+                        type: string
+                        nullable: true
+                        example: Greater Manchester
+                      postcode:
+                        type: string
+                        nullable: true
+                        example: M1 1AA
+                      country:
+                        type: string
+                        nullable: true
+                        example: United Kingdom
+                      service_radius_miles:
+                        type: integer
+                        nullable: true
+                        example: 25
+                      latitude:
+                        type: number
+                        format: float
+                        nullable: true
+                        example: 53.4808
+                      longitude:
+                        type: number
+                        format: float
+                        nullable: true
+                        example: -2.2426
+                      created_at:
+                        type: string
+                        format: date-time
+                        example: 2024-01-15T10:30:00Z
+                      updated_at:
+                        type: string
+                        format: date-time
+                        example: 2024-01-20T14:45:00Z
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '403':
@@ -710,14 +1259,18 @@ paths:
                 properties:
                   message:
                     type: string
-                    example: This endpoint is only for tradespersons
-
-  /profile/company:
+                    example: This endpoint is only for tradespeople
     put:
       tags:
         - Profile
-      summary: Update company profile
-      description: Update company profile information. Updates both User and Company data. Only accessible to authenticated company users.
+      summary: Update tradesperson profile
+      description: |
+        Update tradesperson-specific profile information (bio, skills, location, service radius).
+        Only accessible to authenticated tradesperson users.
+
+        **Note:** To update user data (first_name, last_name, phone, notifications), use PUT /profile/user instead.
+
+        All fields are optional. Automatically triggers geocoding when postcode changes.
       security:
         - bearerAuth: []
       requestBody:
@@ -727,80 +1280,61 @@ paths:
             schema:
               type: object
               properties:
-                first_name:
+                bio:
                   type: string
-                  maxLength: 255
-                last_name:
-                  type: string
-                  maxLength: 255
-                phone:
-                  type: string
-                  maxLength: 20
-                company_name:
-                  type: string
-                  maxLength: 255
-                trading_name:
-                  type: string
-                  maxLength: 255
+                  maxLength: 1000
                   nullable: true
-                company_email:
-                  type: string
-                  format: email
-                  maxLength: 255
+                  example: Experienced plumber with 20 years in the industry
+                  description: (Optional) Professional bio
+                skills:
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 255
                   nullable: true
-                company_phone:
-                  type: string
-                  maxLength: 20
+                  example: ["Plumbing", "Heating", "Gas Safety"]
+                  description: (Optional) Array of skills
+                years_experience:
+                  type: integer
+                  minimum: 0
+                  maximum: 70
                   nullable: true
-                website:
-                  type: string
-                  format: uri
-                  maxLength: 255
-                  nullable: true
-                registered_address:
-                  type: string
-                  maxLength: 500
-                trading_address:
-                  type: string
-                  maxLength: 500
-                  nullable: true
+                  example: 20
+                  description: (Optional) Years of experience
                 city:
                   type: string
                   maxLength: 255
+                  nullable: true
+                  example: Manchester
+                  description: (Optional) City
                 county:
                   type: string
                   maxLength: 255
                   nullable: true
+                  example: Greater Manchester
+                  description: (Optional) County
                 postcode:
                   type: string
                   maxLength: 10
-                description:
+                  nullable: true
+                  example: M1 1AA
+                  description: (Optional) Postcode - triggers geocoding when changed
+                country:
                   type: string
-                  maxLength: 1000
+                  maxLength: 255
                   nullable: true
-                company_size:
-                  type: string
-                  enum: [1-10, 11-50, 51-200, 201-500, 500+]
+                  example: United Kingdom
+                  description: (Optional) Country
+                service_radius_miles:
+                  type: integer
+                  minimum: 1
+                  maximum: 200
                   nullable: true
-                annual_turnover:
-                  type: number
-                  minimum: 0
-                  nullable: true
-                services_offered:
-                  type: array
-                  items:
-                    type: string
-                    maxLength: 255
-                  nullable: true
-                specializations:
-                  type: array
-                  items:
-                    type: string
-                    maxLength: 255
-                  nullable: true
+                  example: 25
+                  description: (Optional) Service radius in miles
       responses:
         '200':
-          description: Company profile updated successfully
+          description: Tradesperson profile updated successfully
           content:
             application/json:
               schema:
@@ -808,9 +1342,151 @@ paths:
                 properties:
                   message:
                     type: string
-                    example: Profile updated successfully
-                  user:
-                    $ref: '#/components/schemas/User'
+                    example: Tradesperson profile updated successfully
+                  tradesperson:
+                    type: object
+                    description: Updated tradesperson data
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: This endpoint is only for tradespeople
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /profile/company:
+    get:
+      tags:
+        - Profile
+      summary: Get company profile
+      description: |
+        Get company-specific profile information.
+        Only accessible to authenticated company users.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Company profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  company:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      user_id:
+                        type: integer
+                        example: 10
+                      company_name:
+                        type: string
+                        example: ABC Construction Ltd
+                      trading_name:
+                        type: string
+                        nullable: true
+                        example: ABC Builders
+                      company_number:
+                        type: string
+                        example: "01856488"
+                      vat_number:
+                        type: string
+                        nullable: true
+                        example: GB123456789
+                      company_email:
+                        type: string
+                        nullable: true
+                        example: info@abc-construction.com
+                      company_phone:
+                        type: string
+                        nullable: true
+                        example: "+442071234567"
+                      website:
+                        type: string
+                        nullable: true
+                        example: https://abc-construction.com
+                      registered_address:
+                        type: string
+                        example: 123 Business Street
+                      trading_address:
+                        type: string
+                        nullable: true
+                        example: 123 Business Street
+                      city:
+                        type: string
+                        example: London
+                      county:
+                        type: string
+                        nullable: true
+                        example: Greater London
+                      postcode:
+                        type: string
+                        example: EC2A 2BB
+                      country:
+                        type: string
+                        nullable: true
+                        example: United Kingdom
+                      description:
+                        type: string
+                        nullable: true
+                        example: Leading construction company with 30 years of experience
+                      company_size:
+                        type: string
+                        nullable: true
+                        example: 51-100
+                      annual_turnover:
+                        type: number
+                        nullable: true
+                        example: 5000000
+                      services_offered:
+                        type: array
+                        items:
+                          type: string
+                        nullable: true
+                        example: ["Commercial Construction", "Residential Build", "Renovations"]
+                      specializations:
+                        type: array
+                        items:
+                          type: string
+                        nullable: true
+                        example: ["High-Rise Buildings", "Sustainable Construction"]
+                      logo_path:
+                        type: string
+                        nullable: true
+                        example: company_logos/abc-logo.jpg
+                      logo_url:
+                        type: string
+                        format: uri
+                        nullable: true
+                        example: /storage/company_logos/abc-logo.jpg
+                        description: Public URL of the company logo
+                      latitude:
+                        type: number
+                        format: float
+                        nullable: true
+                        example: 51.5074
+                      longitude:
+                        type: number
+                        format: float
+                        nullable: true
+                        example: -0.1278
+                      created_at:
+                        type: string
+                        format: date-time
+                        example: 2024-01-15T10:30:00Z
+                      updated_at:
+                        type: string
+                        format: date-time
+                        example: 2024-01-20T14:45:00Z
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '403':
@@ -823,6 +1499,1267 @@ paths:
                   message:
                     type: string
                     example: This endpoint is only for companies
+    put:
+      tags:
+        - Profile
+      summary: Update company profile
+      description: |
+        Update company-specific profile information including logo upload.
+        Only accessible to authenticated company users.
+
+        **Note:** To update user data (first_name, last_name, phone, notifications), use PUT /profile/user instead.
+
+        **Supports all fields from Edit Company screen:**
+        - Basic info (name, trading name, company number, VAT)
+        - Address (with automatic geocoding when changed)
+        - Company details (size, bio, services, specializations)
+        - Logo upload (replaces existing if present)
+
+        All fields are optional. Requires multipart/form-data for logo upload.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                company_name:
+                  type: string
+                  maxLength: 255
+                  example: ABC Construction Ltd
+                  description: (Optional) Legal company name
+                trading_name:
+                  type: string
+                  maxLength: 255
+                  nullable: true
+                  example: ABC Builders
+                  description: (Optional) Trading name (DBA)
+                company_number:
+                  type: string
+                  maxLength: 50
+                  example: "01856488"
+                  description: (Optional) Company registration number - must be unique
+                vat_number:
+                  type: string
+                  maxLength: 50
+                  nullable: true
+                  example: GB123456789
+                  description: (Optional) VAT registration number
+                company_email:
+                  type: string
+                  format: email
+                  maxLength: 255
+                  nullable: true
+                  example: info@abc-construction.com
+                  description: (Optional) Company email
+                company_phone:
+                  type: string
+                  maxLength: 20
+                  nullable: true
+                  example: "+442071234567"
+                  description: (Optional) Company phone
+                website:
+                  type: string
+                  format: uri
+                  maxLength: 255
+                  nullable: true
+                  example: https://abc-construction.com
+                  description: (Optional) Company website URL
+                registered_address:
+                  type: string
+                  maxLength: 500
+                  example: 123 Business Street
+                  description: (Optional) Registered business address
+                trading_address:
+                  type: string
+                  maxLength: 500
+                  nullable: true
+                  example: 123 Business Street
+                  description: (Optional) Trading address if different from registered
+                city:
+                  type: string
+                  maxLength: 255
+                  example: London
+                  description: (Optional) City
+                county:
+                  type: string
+                  maxLength: 255
+                  nullable: true
+                  example: Greater London
+                  description: (Optional) County
+                postcode:
+                  type: string
+                  maxLength: 10
+                  example: EC2A 2BB
+                  description: (Optional) Postcode - triggers geocoding when changed
+                country:
+                  type: string
+                  maxLength: 255
+                  nullable: true
+                  example: United Kingdom
+                  description: (Optional) Country - triggers geocoding when changed
+                description:
+                  type: string
+                  maxLength: 1000
+                  nullable: true
+                  example: Leading construction company with 30 years of experience
+                  description: (Optional) Company bio/description
+                company_size:
+                  type: string
+                  enum: [1-10, 11-50, 51-100, 101-200, 201-500, 500+]
+                  nullable: true
+                  example: 51-100
+                  description: (Optional) Company size bracket
+                annual_turnover:
+                  type: number
+                  minimum: 0
+                  nullable: true
+                  example: 5000000
+                  description: (Optional) Annual turnover
+                services_offered:
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 255
+                  nullable: true
+                  example: ["Commercial Construction", "Residential Build", "Renovations"]
+                  description: (Optional) Array of services offered
+                specializations:
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 255
+                  nullable: true
+                  example: ["High-Rise Buildings", "Sustainable Construction"]
+                  description: (Optional) Array of specializations
+                logo:
+                  type: string
+                  format: binary
+                  description: (Optional) Company logo (JPG/PNG - max 2MB). Replaces existing logo if present.
+      responses:
+        '200':
+          description: Company profile updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Company profile updated successfully
+                  company:
+                    type: object
+                    description: Updated company data
+                  logo_url:
+                    type: string
+                    format: uri
+                    example: /storage/company_logos/logo.jpg
+                    description: Public URL of uploaded logo (only present if logo was uploaded)
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a company
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: This endpoint is only for companies
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /qualifications:
+    get:
+      tags:
+        - Tradesperson Profile
+      summary: Get all qualifications
+      description: Get list of all qualifications for authenticated tradesperson with file URLs
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Qualifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  qualifications:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        file_name:
+                          type: string
+                          description: (Required) Name of the qualification
+                        file_url:
+                          type: string
+                          format: uri
+                          description: Public URL to download file
+                        expiry_date:
+                          type: string
+                          format: date
+                          nullable: true
+                          description: (Optional) Expiry date
+                        created_at:
+                          type: string
+                          format: date-time
+                  total:
+                    type: integer
+                    example: 3
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+    post:
+      tags:
+        - Tradesperson Profile
+      summary: Upload new qualification
+      description: Upload a qualification certificate (PDF or image, max 10MB)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - file_name
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: (Required) Qualification file (PDF/JPG/PNG - max 10MB)
+                file_name:
+                  type: string
+                  maxLength: 255
+                  example: CSCS Card
+                  description: (Required) Name/description of qualification
+                expiry_date:
+                  type: string
+                  format: date
+                  nullable: true
+                  example: '2025-12-31'
+                  description: (Optional) Expiry date (must be after today)
+      responses:
+        '201':
+          description: Qualification uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Qualification uploaded successfully
+                  qualification:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      file_name:
+                        type: string
+                      file_url:
+                        type: string
+                        format: uri
+                      expiry_date:
+                        type: string
+                        format: date
+                        nullable: true
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /qualifications/{id}:
+    delete:
+      tags:
+        - Tradesperson Profile
+      summary: Delete qualification
+      description: Delete a qualification and its associated file from storage
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Qualification ID
+      responses:
+        '200':
+          description: Qualification deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Qualification deleted successfully
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+        '404':
+          description: Qualification not found
+
+  /drivers-license:
+    get:
+      tags:
+        - Tradesperson Profile
+      summary: Get driver's license
+      description: Get driver's license details with image URLs
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Driver's license retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  drivers_license:
+                    type: object
+                    nullable: true
+                    properties:
+                      id:
+                        type: integer
+                      category:
+                        type: string
+                        nullable: true
+                        example: B
+                        description: (Optional) License category
+                      front_image_url:
+                        type: string
+                        format: uri
+                      back_image_url:
+                        type: string
+                        format: uri
+                      expiry_date:
+                        type: string
+                        format: date
+                        nullable: true
+                        description: (Optional) Expiry date
+                      created_at:
+                        type: string
+                        format: date-time
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+    post:
+      tags:
+        - Tradesperson Profile
+      summary: Upload driver's license
+      description: Upload front and back images of driver's license
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - front_image
+                - back_image
+              properties:
+                front_image:
+                  type: string
+                  format: binary
+                  description: (Required) Front image (JPG/PNG - max 5MB)
+                back_image:
+                  type: string
+                  format: binary
+                  description: (Required) Back image (JPG/PNG - max 5MB)
+                category:
+                  type: string
+                  maxLength: 50
+                  nullable: true
+                  example: B
+                  description: (Optional) License category (A, B, C, D, etc.)
+                expiry_date:
+                  type: string
+                  format: date
+                  nullable: true
+                  example: '2028-06-30'
+                  description: (Optional) Expiry date (must be after today)
+      responses:
+        '201':
+          description: Driver's license uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Driver's license uploaded successfully
+                  drivers_license:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      category:
+                        type: string
+                        nullable: true
+                      front_image_url:
+                        type: string
+                        format: uri
+                      back_image_url:
+                        type: string
+                        format: uri
+                      expiry_date:
+                        type: string
+                        format: date
+                        nullable: true
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+        '409':
+          description: Driver's license already exists (use PUT to update)
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    put:
+      tags:
+        - Tradesperson Profile
+      summary: Update driver's license
+      description: Update driver's license images or details. Old images are automatically deleted.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                front_image:
+                  type: string
+                  format: binary
+                  description: (Optional) New front image (JPG/PNG - max 5MB)
+                back_image:
+                  type: string
+                  format: binary
+                  description: (Optional) New back image (JPG/PNG - max 5MB)
+                category:
+                  type: string
+                  maxLength: 50
+                  nullable: true
+                  description: (Optional) License category
+                expiry_date:
+                  type: string
+                  format: date
+                  nullable: true
+                  description: (Optional) Expiry date (must be after today)
+      responses:
+        '200':
+          description: Driver's license updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Driver's license updated successfully
+                  drivers_license:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      category:
+                        type: string
+                        nullable: true
+                      front_image_url:
+                        type: string
+                        format: uri
+                      back_image_url:
+                        type: string
+                        format: uri
+                      expiry_date:
+                        type: string
+                        format: date
+                        nullable: true
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+        '404':
+          description: No driver's license found (use POST to create)
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags:
+        - Tradesperson Profile
+      summary: Delete driver's license
+      description: Delete driver's license and remove images from storage
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Driver's license deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Driver's license deleted successfully
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+        '404':
+          description: No driver's license found
+
+  /availability:
+    get:
+      tags:
+        - Tradesperson Profile
+      summary: Get availability settings
+      description: Get working days, working hours, and unavailable days for authenticated tradesperson
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Availability settings retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  working_days:
+                    type: array
+                    items:
+                      type: string
+                      enum: [monday, tuesday, wednesday, thursday, friday, saturday, sunday, bank_holidays]
+                    example: [monday, tuesday, wednesday, thursday, friday]
+                    description: (Optional) Array of working days
+                  working_hours:
+                    type: object
+                    nullable: true
+                    properties:
+                      type:
+                        type: string
+                        enum: [all_day_night, day_shift, night_shift, custom]
+                        example: day_shift
+                        description: (Optional) Working hours type
+                      weekday:
+                        type: object
+                        nullable: true
+                        properties:
+                          start_time:
+                            type: string
+                            pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+                            example: '08:00'
+                            description: (Optional) Start time (HH:mm format)
+                          end_time:
+                            type: string
+                            pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+                            example: '17:00'
+                            description: (Optional) End time (HH:mm format)
+                      weekend:
+                        type: object
+                        nullable: true
+                        properties:
+                          start_time:
+                            type: string
+                            pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+                            description: (Optional) Weekend start time
+                          end_time:
+                            type: string
+                            pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+                            description: (Optional) Weekend end time
+                  availability:
+                    type: object
+                    nullable: true
+                    properties:
+                      unavailable_days:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            start_date:
+                              type: string
+                              format: date
+                              description: (Required) Start date of unavailability
+                            end_date:
+                              type: string
+                              format: date
+                              description: (Required) End date (must be >= start_date)
+                  working_conditions:
+                    type: object
+                    properties:
+                      accommodation:
+                        type: boolean
+                        example: false
+                        description: (Optional) Requires accommodation
+                      travel_compensation:
+                        type: boolean
+                        example: false
+                        description: (Optional) Requires travel compensation
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+
+  /availability/working-days:
+    put:
+      tags:
+        - Tradesperson Profile
+      summary: Update working days
+      description: Set which days of the week the tradesperson is available to work
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - working_days
+              properties:
+                working_days:
+                  type: array
+                  items:
+                    type: string
+                    enum: [monday, tuesday, wednesday, thursday, friday, saturday, sunday, bank_holidays]
+                  example: [monday, tuesday, wednesday, thursday, friday, saturday]
+                  description: (Required) Array of working days
+      responses:
+        '200':
+          description: Working days updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Working days updated successfully
+                  working_days:
+                    type: array
+                    items:
+                      type: string
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /availability/working-hours:
+    put:
+      tags:
+        - Tradesperson Profile
+      summary: Update working hours
+      description: Set working hours for weekdays and weekends
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+              properties:
+                type:
+                  type: string
+                  enum: [all_day_night, day_shift, night_shift, custom]
+                  example: day_shift
+                  description: (Required) Working hours type
+                weekday:
+                  type: object
+                  nullable: true
+                  properties:
+                    start_time:
+                      type: string
+                      pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+                      example: '08:00'
+                      description: (Optional) Weekday start time (HH:mm format)
+                    end_time:
+                      type: string
+                      pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+                      example: '17:00'
+                      description: (Optional) Weekday end time (HH:mm format)
+                weekend:
+                  type: object
+                  nullable: true
+                  properties:
+                    start_time:
+                      type: string
+                      pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+                      example: '09:00'
+                      description: (Optional) Weekend start time
+                    end_time:
+                      type: string
+                      pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+                      example: '15:00'
+                      description: (Optional) Weekend end time
+      responses:
+        '200':
+          description: Working hours updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Working hours updated successfully
+                  working_hours:
+                    type: object
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /availability/unavailable-days:
+    put:
+      tags:
+        - Tradesperson Profile
+      summary: Update unavailable days
+      description: Set date ranges when tradesperson is unavailable (holidays, booked time, etc.)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - unavailable_days
+              properties:
+                unavailable_days:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - start_date
+                      - end_date
+                    properties:
+                      start_date:
+                        type: string
+                        format: date
+                        example: '2025-12-20'
+                        description: (Required) Start date of unavailability
+                      end_date:
+                        type: string
+                        format: date
+                        example: '2025-12-27'
+                        description: (Required) End date (must be >= start_date)
+                  example:
+                    - start_date: '2025-12-20'
+                      end_date: '2025-12-27'
+                    - start_date: '2026-01-10'
+                      end_date: '2026-01-15'
+                  description: (Required) Array of unavailable date ranges
+      responses:
+        '200':
+          description: Unavailable days updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Unavailable days updated successfully
+                  unavailable_days:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        start_date:
+                          type: string
+                          format: date
+                        end_date:
+                          type: string
+                          format: date
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /availability/working-conditions:
+    put:
+      tags:
+        - Tradesperson Profile
+      summary: Update working conditions
+      description: Set working conditions preferences (accommodation and travel compensation)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - accommodation
+                - travel_compensation
+              properties:
+                accommodation:
+                  type: boolean
+                  example: true
+                  description: (Required) Requires accommodation
+                travel_compensation:
+                  type: boolean
+                  example: true
+                  description: (Required) Requires travel compensation
+      responses:
+        '200':
+          description: Working conditions updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Working conditions updated successfully
+                  working_conditions:
+                    type: object
+                    properties:
+                      accommodation:
+                        type: boolean
+                      travel_compensation:
+                        type: boolean
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /rates:
+    get:
+      tags:
+        - Tradesperson Profile
+      summary: Get rates
+      description: Get current rates for authenticated tradesperson
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Rates retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rates:
+                    type: object
+                    nullable: true
+                    description: (Optional) Detailed rates structure (JSON)
+                  hourly_rate:
+                    type: number
+                    format: float
+                    nullable: true
+                    example: 45.00
+                    description: (Optional) Legacy hourly rate field
+                  daily_rate:
+                    type: number
+                    format: float
+                    nullable: true
+                    example: 350.00
+                    description: (Optional) Legacy daily rate field
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+    put:
+      tags:
+        - Tradesperson Profile
+      summary: Update rates
+      description: Update hourly or flat rates with variations for day/night, weekends, bank holidays, and overtime
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - rate_type
+              properties:
+                rate_type:
+                  type: string
+                  enum: [hourly, flat]
+                  example: hourly
+                  description: (Required) Type of rate structure
+                day_rates:
+                  type: object
+                  nullable: true
+                  properties:
+                    work_days:
+                      type: number
+                      format: float
+                      minimum: 0
+                      example: 45.00
+                      description: (Optional) Regular weekday day rate
+                    weekends:
+                      type: number
+                      format: float
+                      minimum: 0
+                      example: 55.00
+                      description: (Optional) Weekend day rate
+                    bank_holidays:
+                      type: number
+                      format: float
+                      minimum: 0
+                      example: 65.00
+                      description: (Optional) Bank holiday day rate
+                    overtime:
+                      type: number
+                      format: float
+                      minimum: 0
+                      example: 55.00
+                      description: (Optional) Overtime day rate
+                night_rates:
+                  type: object
+                  nullable: true
+                  properties:
+                    work_days:
+                      type: number
+                      format: float
+                      minimum: 0
+                      example: 50.00
+                      description: (Optional) Regular weekday night rate
+                    weekends:
+                      type: number
+                      format: float
+                      minimum: 0
+                      example: 60.00
+                      description: (Optional) Weekend night rate
+                    bank_holidays:
+                      type: number
+                      format: float
+                      minimum: 0
+                      example: 70.00
+                      description: (Optional) Bank holiday night rate
+                    overtime:
+                      type: number
+                      format: float
+                      minimum: 0
+                      example: 60.00
+                      description: (Optional) Overtime night rate
+                flat_rate:
+                  type: number
+                  format: float
+                  minimum: 0
+                  nullable: true
+                  example: 350.00
+                  description: (Optional) Flat daily rate (used when rate_type is 'flat')
+      responses:
+        '200':
+          description: Rates updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Rates updated successfully
+                  rates:
+                    type: object
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /portfolio:
+    get:
+      tags:
+        - Tradesperson Profile
+      summary: Get all portfolio items
+      description: Get all portfolio items for authenticated tradesperson
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Portfolio items retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  portfolio_items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1
+                        project_name:
+                          type: string
+                          example: Kitchen Renovation
+                        description:
+                          type: string
+                          example: Complete kitchen renovation including new cabinets, countertops, and appliances
+                        image_url:
+                          type: string
+                          example: /storage/portfolios/123/project-image.jpg
+                        created_at:
+                          type: string
+                          format: date-time
+                          example: 2025-01-15T10:30:00Z
+                  total:
+                    type: integer
+                    example: 5
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+    post:
+      tags:
+        - Tradesperson Profile
+      summary: Create new portfolio item
+      description: Add a new portfolio item with project image, name, and description
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - image
+                - project_name
+                - description
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: (Required) Project image (jpg, jpeg, or png, max 5MB)
+                project_name:
+                  type: string
+                  maxLength: 255
+                  example: Kitchen Renovation
+                  description: (Required) Name of the project
+                description:
+                  type: string
+                  maxLength: 1000
+                  example: Complete kitchen renovation including new cabinets, countertops, and appliances
+                  description: (Required) Description of the project
+      responses:
+        '201':
+          description: Portfolio item created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Portfolio item added successfully
+                  portfolio_item:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      project_name:
+                        type: string
+                        example: Kitchen Renovation
+                      description:
+                        type: string
+                        example: Complete kitchen renovation including new cabinets, countertops, and appliances
+                      image_url:
+                        type: string
+                        example: /storage/portfolios/123/project-image.jpg
+                      created_at:
+                        type: string
+                        format: date-time
+                        example: 2025-01-15T10:30:00Z
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /portfolio/{id}:
+    get:
+      tags:
+        - Tradesperson Profile
+      summary: Get single portfolio item
+      description: Get a specific portfolio item by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Portfolio item ID
+      responses:
+        '200':
+          description: Portfolio item retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  portfolio_item:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      project_name:
+                        type: string
+                        example: Kitchen Renovation
+                      description:
+                        type: string
+                        example: Complete kitchen renovation including new cabinets, countertops, and appliances
+                      image_url:
+                        type: string
+                        example: /storage/portfolios/123/project-image.jpg
+                      created_at:
+                        type: string
+                        format: date-time
+                        example: 2025-01-15T10:30:00Z
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+        '404':
+          description: Portfolio item not found
+    put:
+      tags:
+        - Tradesperson Profile
+      summary: Update portfolio item
+      description: Update an existing portfolio item (all fields are optional)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Portfolio item ID
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: (Optional) New project image (jpg, jpeg, or png, max 5MB)
+                project_name:
+                  type: string
+                  maxLength: 255
+                  example: Updated Kitchen Renovation
+                  description: (Optional) Updated project name
+                description:
+                  type: string
+                  maxLength: 1000
+                  example: Updated description of the project
+                  description: (Optional) Updated project description
+      responses:
+        '200':
+          description: Portfolio item updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Portfolio item updated successfully
+                  portfolio_item:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      project_name:
+                        type: string
+                        example: Updated Kitchen Renovation
+                      description:
+                        type: string
+                        example: Updated description of the project
+                      image_url:
+                        type: string
+                        example: /storage/portfolios/123/project-image.jpg
+                      created_at:
+                        type: string
+                        format: date-time
+                        example: 2025-01-15T10:30:00Z
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+        '404':
+          description: Portfolio item not found
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags:
+        - Tradesperson Profile
+      summary: Delete portfolio item
+      description: Delete a portfolio item and its associated image
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Portfolio item ID
+      responses:
+        '200':
+          description: Portfolio item deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Portfolio item deleted successfully
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+        '404':
+          description: Portfolio item not found
 
   /admin/pending-verifications:
     get:
@@ -1142,7 +3079,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [1-10, 11-50, 51-200, 201-500, 500+]
+            enum: [1-10, 11-50, 51-100, 101-200, 201-500, 500+]
           description: Filter by company size
         - name: verified_only
           in: query
@@ -1561,6 +3498,7 @@ components:
         company_registration_number:
           type: string
           nullable: true
+          description: Company registration number (formerly registration_number)
         vat_number:
           type: string
           nullable: true
@@ -1609,8 +3547,9 @@ components:
           nullable: true
         company_size:
           type: string
-          enum: [1-10, 11-50, 51-200, 201-500, 500+]
+          enum: [1-10, 11-50, 51-100, 101-200, 201-500, 500+]
           nullable: true
+          description: Updated company size brackets
         annual_turnover:
           type: number
           format: float
@@ -1758,7 +3697,7 @@ components:
           nullable: true
         company_size:
           type: string
-          enum: [1-10, 11-50, 51-200, 201-500, 500+]
+          enum: [1-10, 11-50, 51-100, 101-200, 201-500, 500+]
           nullable: true
         services_offered:
           type: array
