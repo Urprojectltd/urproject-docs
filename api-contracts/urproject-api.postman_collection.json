@@ -1,45 +1,28 @@
 {
   "info": {
-    "name": "UrProject API - Construction Recruitment",
-    "description": "Complete API collection for UrProject - Two-sided marketplace connecting construction professionals with projects",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "version": "1.0.0"
+    "_postman_id": "urproject-api-collection-2025",
+    "name": "UrProject API - Testing Collection",
+    "description": "Comprehensive API testing collection for UrProject Construction Recruitment Platform with Laravel Breeze + Sanctum authentication, including onboarding flows, admin verification, and profile management",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
-  "auth": {
-    "type": "bearer",
-    "bearer": [
-      {
-        "key": "token",
-        "value": "{{access_token}}",
-        "type": "string"
-      }
-    ]
-  },
-  "variable": [
-    {
-      "key": "base_url",
-      "value": "http://localhost:8080",
-      "type": "string"
-    },
-    {
-      "key": "access_token",
-      "value": "",
-      "type": "string"
-    }
-  ],
   "item": [
     {
-      "name": "🔐 Authentication",
+      "name": "1. Health Checks",
       "item": [
         {
-          "name": "Register Tradesperson",
+          "name": "Basic Health Check",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test(\"Status code is 204\", function () {",
-                  "    pm.response.to.have.status(204);",
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Status is healthy\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql(\"healthy\");",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -47,38 +30,410 @@
             }
           ],
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
               {
                 "key": "Accept",
                 "value": "application/json"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"first_name\": \"John\",\n  \"last_name\": \"Smith\",\n  \"email\": \"john.smith@example.com\",\n  \"phone\": \"+447123456789\",\n  \"password\": \"Password123!\",\n  \"password_confirmation\": \"Password123!\",\n  \"postcode\": \"SW1A 1AA\",\n  \"skills\": [\"Plumbing\", \"Heating\"],\n  \"certifications\": [\"Gas Safe\", \"CSCS\"],\n  \"experience_years\": 10,\n  \"bio\": \"Experienced plumber with 10 years in the UK construction industry\"\n}"
-            },
             "url": {
-              "raw": "{{base_url}}/register/tradesperson",
+              "raw": "{{base_url}}/health",
               "host": ["{{base_url}}"],
-              "path": ["register", "tradesperson"]
+              "path": ["health"]
             }
           },
           "response": []
         },
         {
-          "name": "Register Company",
+          "name": "Detailed Health Check",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test(\"Status code is 204\", function () {",
-                  "    pm.response.to.have.status(204);",
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Health checks returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"checks\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/health/detailed",
+              "host": ["{{base_url}}"],
+              "path": ["health", "detailed"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Onboarding (with KYC)",
+      "description": "New onboarding endpoints with KYC document upload, S3 storage, and manual review job queue",
+      "item": [
+        {
+          "name": "Onboard Worker (with KYC)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Worker onboarded successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "    pm.expect(jsonData.user).to.have.property(\"uuid\");",
+                  "    pm.expect(jsonData.message).to.include(\"pending verification\");",
+                  "    pm.environment.set(\"user_uuid\", jsonData.user.uuid);",
+                  "    if (jsonData.token) {",
+                  "        pm.environment.set(\"token\", jsonData.token);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "first_name",
+                  "value": "John",
+                  "type": "text"
+                },
+                {
+                  "key": "last_name",
+                  "value": "Smith",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "john.smith.{{$timestamp}}@example.com",
+                  "type": "text"
+                },
+                {
+                  "key": "phone",
+                  "value": "+447700900{{$timestamp}}",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "Password123!",
+                  "type": "text"
+                },
+                {
+                  "key": "password_confirmation",
+                  "value": "Password123!",
+                  "type": "text"
+                },
+                {
+                  "key": "bio",
+                  "value": "Experienced plumber with 15 years in the industry",
+                  "type": "text"
+                },
+                {
+                  "key": "skills[]",
+                  "value": "Plumbing",
+                  "type": "text"
+                },
+                {
+                  "key": "skills[]",
+                  "value": "Heating",
+                  "type": "text"
+                },
+                {
+                  "key": "skills[]",
+                  "value": "Gas Safety",
+                  "type": "text"
+                },
+                {
+                  "key": "hourly_rate",
+                  "value": "45.00",
+                  "type": "text"
+                },
+                {
+                  "key": "city",
+                  "value": "{{test_city}}",
+                  "type": "text"
+                },
+                {
+                  "key": "postcode",
+                  "value": "{{test_postcode}}",
+                  "type": "text"
+                },
+                {
+                  "key": "kyc_document",
+                  "type": "file",
+                  "src": [],
+                  "description": "Upload a PDF/JPG/PNG document (max 5MB)"
+                },
+                {
+                  "key": "selfie",
+                  "type": "file",
+                  "src": [],
+                  "description": "Optional selfie photo (max 2MB)"
+                },
+                {
+                  "key": "portfolio_images[]",
+                  "type": "file",
+                  "src": [],
+                  "description": "Optional portfolio images (max 10 images)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/onboarding/worker",
+              "host": ["{{base_url}}"],
+              "path": ["onboarding", "worker"]
+            },
+            "description": "Onboard a worker with KYC document upload. Documents are stored in S3 and queued for manual review."
+          },
+          "response": []
+        },
+        {
+          "name": "Onboard Company (with KYC)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Company onboarded successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "    pm.expect(jsonData.user).to.have.property(\"uuid\");",
+                  "    pm.environment.set(\"company_uuid\", jsonData.user.uuid);",
+                  "    if (jsonData.token) {",
+                  "        pm.environment.set(\"company_token\", jsonData.token);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "first_name",
+                  "value": "Jane",
+                  "type": "text"
+                },
+                {
+                  "key": "last_name",
+                  "value": "Doe",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "jane.doe.{{$timestamp}}@company.com",
+                  "type": "text"
+                },
+                {
+                  "key": "phone",
+                  "value": "+447700900{{$timestamp}}",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "Password123!",
+                  "type": "text"
+                },
+                {
+                  "key": "password_confirmation",
+                  "value": "Password123!",
+                  "type": "text"
+                },
+                {
+                  "key": "company_name",
+                  "value": "ABC Construction Ltd",
+                  "type": "text"
+                },
+                {
+                  "key": "company_type",
+                  "value": "limited",
+                  "type": "text"
+                },
+                {
+                  "key": "company_registration_number",
+                  "value": "12345678",
+                  "type": "text"
+                },
+                {
+                  "key": "registered_address",
+                  "value": "123 Business Street",
+                  "type": "text"
+                },
+                {
+                  "key": "city",
+                  "value": "{{test_city}}",
+                  "type": "text"
+                },
+                {
+                  "key": "postcode",
+                  "value": "{{test_postcode}}",
+                  "type": "text"
+                },
+                {
+                  "key": "company_email",
+                  "value": "info@abc-construction.com",
+                  "type": "text"
+                },
+                {
+                  "key": "company_phone",
+                  "value": "+442071234567",
+                  "type": "text"
+                },
+                {
+                  "key": "company_website",
+                  "value": "https://abc-construction.com",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Leading construction company specializing in commercial projects",
+                  "type": "text"
+                },
+                {
+                  "key": "company_registration",
+                  "type": "file",
+                  "src": [],
+                  "description": "Optional company registration certificate"
+                },
+                {
+                  "key": "insurance_certificate",
+                  "type": "file",
+                  "src": [],
+                  "description": "Optional insurance certificate"
+                },
+                {
+                  "key": "tax_document",
+                  "type": "file",
+                  "src": [],
+                  "description": "Optional tax/VAT document"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/onboarding/company",
+              "host": ["{{base_url}}"],
+              "path": ["onboarding", "company"]
+            },
+            "description": "Onboard a company with optional KYC documents. Documents are stored in S3."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Onboarding Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Onboarding status returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"status\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/onboarding/status",
+              "host": ["{{base_url}}"],
+              "path": ["onboarding", "status"]
+            },
+            "description": "Get the current onboarding/verification status for the authenticated user"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Authentication - Login",
+      "item": [
+        {
+          "name": "Login Tradesperson (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Login successful and token received\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "    pm.expect(jsonData).to.have.property(\"token\");",
+                  "    ",
+                  "    // Save token to environment",
+                  "    pm.environment.set(\"token\", jsonData.token);",
+                  "    pm.environment.set(\"user_uuid\", jsonData.user.uuid);",
+                  "});",
+                  "",
+                  "pm.test(\"User data returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.user).to.have.property(\"email\");",
+                  "    pm.expect(jsonData.user.user_type).to.eql(\"tradesperson\");",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -99,16 +454,154 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"first_name\": \"Sarah\",\n  \"last_name\": \"Johnson\",\n  \"email\": \"sarah.johnson@buildright.co.uk\",\n  \"phone\": \"+447987654321\",\n  \"password\": \"Password123!\",\n  \"password_confirmation\": \"Password123!\",\n  \"company_name\": \"BuildRight Ltd\",\n  \"company_type\": \"limited\",\n  \"registered_address\": \"123 Construction Street\",\n  \"city\": \"London\",\n  \"postcode\": \"EC1A 1BB\",\n  \"company_email\": \"info@buildright.co.uk\",\n  \"company_phone\": \"+442071234567\",\n  \"description\": \"Leading construction and fit-out company in London\"\n}"
+              "raw": "{\n    \"email\": \"{{test_email}}\",\n    \"password\": \"{{test_password}}\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/register/company",
+              "raw": "{{base_url}}/login",
               "host": ["{{base_url}}"],
-              "path": ["register", "company"]
+              "path": ["login"]
             }
           },
           "response": []
         },
+        {
+          "name": "Login Company (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Company login successful\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set(\"company_token\", jsonData.token);",
+                  "    pm.expect(jsonData.user.user_type).to.eql(\"company\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"{{company_email}}\",\n    \"password\": \"{{company_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/login",
+              "host": ["{{base_url}}"],
+              "path": ["login"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login Admin (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Admin login successful\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set(\"admin_token\", jsonData.token);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"{{admin_email}}\",\n    \"password\": \"{{admin_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/login",
+              "host": ["{{base_url}}"],
+              "path": ["login"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Wrong Password (Fail)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 422\", function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "",
+                  "pm.test(\"Invalid credentials error\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.include(\"credentials\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"john.smith@example.com\",\n    \"password\": \"WrongPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/login",
+              "host": ["{{base_url}}"],
+              "path": ["login"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Phone Verification (OTP)",
+      "item": [
         {
           "name": "Send OTP",
           "event": [
@@ -122,7 +615,8 @@
                   "",
                   "pm.test(\"OTP sent successfully\", function () {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.message).to.include('OTP sent');",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "    pm.expect(jsonData.message).to.include(\"OTP sent\");",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -132,6 +626,10 @@
           "request": {
             "method": "POST",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -143,7 +641,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phone\": \"+447123456789\",\n  \"purpose\": \"phone_verification\"\n}"
+              "raw": "{\n    \"phone\": \"{{test_phone}}\",\n    \"purpose\": \"phone_verification\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/otp/send",
@@ -154,7 +652,7 @@
           "response": []
         },
         {
-          "name": "Verify OTP",
+          "name": "Verify OTP (Success)",
           "event": [
             {
               "listen": "test",
@@ -164,9 +662,9 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
-                  "pm.test(\"OTP verified\", function () {",
+                  "pm.test(\"Phone verified\", function () {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.message).to.include('verified');",
+                  "    pm.expect(jsonData.success).to.eql(true);",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -176,6 +674,10 @@
           "request": {
             "method": "POST",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -187,7 +689,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phone\": \"+447123456789\",\n  \"code\": \"123456\",\n  \"purpose\": \"phone_verification\"\n}"
+              "raw": "{\n    \"phone\": \"{{test_phone}}\",\n    \"code\": \"{{otp_code}}\",\n    \"purpose\": \"phone_verification\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/otp/verify",
@@ -196,9 +698,14 @@
             }
           },
           "response": []
-        },
+        }
+      ]
+    },
+    {
+      "name": "5. Profile Management",
+      "item": [
         {
-          "name": "Login",
+          "name": "Get Current User Profile",
           "event": [
             {
               "listen": "test",
@@ -208,17 +715,10 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
-                  "pm.test(\"Token received and saved\", function () {",
+                  "pm.test(\"Profile data returned\", function () {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('token');",
-                  "    pm.environment.set('access_token', jsonData.token);",
-                  "    console.log('✅ Token saved to environment:', jsonData.token);",
-                  "});",
-                  "",
-                  "pm.test(\"User data present\", function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.user).to.have.property('uuid');",
-                  "    pm.expect(jsonData.user).to.have.property('email');",
+                  "    pm.expect(jsonData).to.have.property(\"user\");",
+                  "    pm.expect(jsonData.user).to.have.property(\"uuid\");",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -226,77 +726,27 @@
             }
           ],
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [
               {
-                "key": "Content-Type",
-                "value": "application/json"
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
               },
               {
                 "key": "Accept",
                 "value": "application/json"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"john.smith@example.com\",\n  \"password\": \"Password123!\",\n  \"device_name\": \"postman\"\n}"
-            },
             "url": {
-              "raw": "{{base_url}}/login",
+              "raw": "{{base_url}}/profile",
               "host": ["{{base_url}}"],
-              "path": ["login"]
+              "path": ["profile"]
             }
           },
           "response": []
         },
         {
-          "name": "Logout",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status code is 204\", function () {",
-                  "    pm.response.to.have.status(204);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/logout",
-              "host": ["{{base_url}}"],
-              "path": ["logout"]
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "👤 Profile Management",
-      "item": [
-        {
-          "name": "Get Profile",
+          "name": "Get Public Profile by ID (Cached)",
           "event": [
             {
               "listen": "test",
@@ -306,10 +756,9 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
-                  "pm.test(\"User data returned\", function () {",
+                  "pm.test(\"Public profile returned\", function () {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.user).to.have.property('uuid');",
-                  "    pm.expect(jsonData.user).to.have.property('first_name');",
+                  "    pm.expect(jsonData).to.have.property(\"user\");",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -317,28 +766,23 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
-            },
             "method": "GET",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
               {
                 "key": "Accept",
                 "value": "application/json"
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/profile",
+              "raw": "{{base_url}}/profile/{{user_uuid}}",
               "host": ["{{base_url}}"],
-              "path": ["api", "profile"]
-            }
+              "path": ["profile", "{{user_uuid}}"]
+            },
+            "description": "Get public profile by user ID. Results are cached for 1 hour (Sprint requirement)."
           },
           "response": []
         },
@@ -353,9 +797,9 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
-                  "pm.test(\"Profile updated\", function () {",
+                  "pm.test(\"Profile updated successfully\", function () {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.message).to.include('updated');",
+                  "    pm.expect(jsonData.success).to.eql(true);",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -363,18 +807,12 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
-            },
             "method": "PUT",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -386,13 +824,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"bio\": \"Updated bio - Specialist in commercial plumbing and heating systems\",\n  \"skills\": [\"Plumbing\", \"Heating\", \"Gas Fitting\", \"Bathroom Installation\"],\n  \"experience_years\": 12,\n  \"service_radius_miles\": 30\n}"
+              "raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Smith\",\n    \"phone\": \"+447700900000\",\n    \"bio\": \"Experienced plumber with 20 years in the trade. Specializing in residential and commercial installations.\",\n    \"skills\": [\"Plumbing\", \"Heating\", \"Gas Safety\", \"Bathroom Fitting\"],\n    \"certifications\": [\"Gas Safe Registered\", \"City & Guilds Level 3\"],\n    \"years_experience\": 20,\n    \"city\": \"Manchester\",\n    \"county\": \"Greater Manchester\",\n    \"postcode\": \"M1 1AA\",\n    \"service_radius_miles\": 25\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/profile/tradesperson",
+              "raw": "{{base_url}}/profile/tradesperson",
               "host": ["{{base_url}}"],
-              "path": ["api", "profile", "tradesperson"]
-            }
+              "path": ["profile", "tradesperson"]
+            },
+            "description": "Update tradesperson profile. Only accessible to users with 'tradesperson' role."
           },
           "response": []
         },
@@ -409,7 +848,7 @@
                   "",
                   "pm.test(\"Company profile updated\", function () {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.message).to.include('updated');",
+                  "    pm.expect(jsonData.success).to.eql(true);",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -417,17 +856,468 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{company_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"first_name\": \"Jane\",\n    \"last_name\": \"Doe\",\n    \"phone\": \"+447700900001\",\n    \"company_name\": \"ABC Construction Ltd\",\n    \"trading_name\": \"ABC Builders\",\n    \"company_email\": \"info@abc-construction.co.uk\",\n    \"company_phone\": \"+442071234567\",\n    \"website\": \"https://abc-construction.co.uk\",\n    \"registered_address\": \"456 New Business Park, London, EC2A 2BB\",\n    \"trading_address\": \"456 New Business Park, London, EC2A 2BB\",\n    \"city\": \"London\",\n    \"county\": \"Greater London\",\n    \"postcode\": \"EC2A 2BB\",\n    \"description\": \"Leading construction company with 30 years of experience\",\n    \"company_size\": \"51-200\",\n    \"annual_turnover\": 5000000,\n    \"services_offered\": [\"Commercial Construction\", \"Residential Build\", \"Renovations\"],\n    \"specializations\": [\"High-Rise Buildings\", \"Sustainable Construction\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/profile/company",
+              "host": ["{{base_url}}"],
+              "path": ["profile", "company"]
+            },
+            "description": "Update company profile. Only accessible to users with 'company' role."
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Profile Picture",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
                 {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
+                  "key": "picture",
+                  "type": "file",
+                  "src": []
                 }
               ]
             },
-            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/profile/picture",
+              "host": ["{{base_url}}"],
+              "path": ["profile", "picture"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Company Logo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{company_token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "logo",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/profile/logo",
+              "host": ["{{base_url}}"],
+              "path": ["profile", "logo"]
+            },
+            "description": "Upload company logo. Only accessible to users with 'company' role."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. Admin - Verification Management",
+      "description": "Admin endpoints for managing user verification (KYC documents, approval/rejection)",
+      "item": [
+        {
+          "name": "Get Pending Verifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Pending verifications returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"data\");",
+                  "    pm.expect(jsonData.data).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/pending-verifications?page={{page}}&per_page={{per_page}}",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "pending-verifications"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}"
+                },
+                {
+                  "key": "per_page",
+                  "value": "{{per_page}}"
+                }
+              ]
+            },
+            "description": "Get list of users pending KYC verification. Requires 'super_admin' or 'admin' role and 'view pending verifications' permission."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Verification Details",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Verification details returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"user\");",
+                  "    pm.expect(jsonData).to.have.property(\"documents\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/verifications/{{user_uuid}}",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "verifications", "{{user_uuid}}"]
+            },
+            "description": "Get detailed verification information for a specific user, including signed URLs to KYC documents."
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Verification",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Verification approved\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "    pm.expect(jsonData.message).to.include(\"approved\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"notes\": \"All documents verified. Approved for platform access.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/verify/{{user_uuid}}",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "verify", "{{user_uuid}}"]
+            },
+            "description": "Approve a user's KYC verification. Requires 'approve verifications' permission. User will receive email notification."
+          },
+          "response": []
+        },
+        {
+          "name": "Reject Verification",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Verification rejected\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "    pm.expect(jsonData.message).to.include(\"rejected\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"Document quality insufficient. Please re-upload clearer images.\",\n    \"required_documents\": [\"kyc_document\", \"selfie\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/reject/{{user_uuid}}",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "reject", "{{user_uuid}}"]
+            },
+            "description": "Reject a user's KYC verification with reason. Requires 'reject verifications' permission. User will receive email notification with rejection reason."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "7. Search & Discovery (Public)",
+      "item": [
+        {
+          "name": "Search Tradespeople",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Search results returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "    pm.expect(jsonData.data).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/search/tradespersons?skill={{search_skill}}&city={{test_city}}&page={{page}}",
+              "host": ["{{base_url}}"],
+              "path": ["search", "tradespersons"],
+              "query": [
+                {
+                  "key": "skill",
+                  "value": "{{search_skill}}"
+                },
+                {
+                  "key": "city",
+                  "value": "{{test_city}}"
+                },
+                {
+                  "key": "page",
+                  "value": "{{page}}"
+                }
+              ]
+            },
+            "description": "Public endpoint - no authentication needed"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Tradesperson Public Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tradesperson profile returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "    pm.expect(jsonData.tradesperson).to.have.property(\"uuid\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/search/tradespersons/{{user_uuid}}",
+              "host": ["{{base_url}}"],
+              "path": ["search", "tradespersons", "{{user_uuid}}"]
+            },
+            "description": "Get public profile of a tradesperson by UUID"
+          },
+          "response": []
+        },
+        {
+          "name": "Search Companies",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/search/companies?city={{test_city}}&page={{page}}",
+              "host": ["{{base_url}}"],
+              "path": ["search", "companies"],
+              "query": [
+                {
+                  "key": "city",
+                  "value": "{{test_city}}"
+                },
+                {
+                  "key": "page",
+                  "value": "{{page}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Company Public Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/search/companies/{{company_uuid}}",
+              "host": ["{{base_url}}"],
+              "path": ["search", "companies", "{{company_uuid}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "8. Password Management",
+      "item": [
+        {
+          "name": "Request Password Reset",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Reset link sent\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "    pm.expect(jsonData.message).to.include(\"reset link sent\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
             "header": [
               {
                 "key": "Content-Type",
@@ -440,18 +1330,19 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"company_name\": \"BuildRight Construction Ltd\",\n  \"description\": \"Leading construction and fit-out specialists in London\",\n  \"services_offered\": [\"Construction\", \"Renovation\", \"Fit-out\", \"Refurbishment\"],\n  \"company_size\": \"51-200\"\n}"
+              "raw": "{\n    \"email\": \"{{test_email}}\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/profile/company",
+              "raw": "{{base_url}}/password/forgot",
               "host": ["{{base_url}}"],
-              "path": ["api", "profile", "company"]
-            }
+              "path": ["password", "forgot"]
+            },
+            "description": "In local dev: Check http://localhost:8025 (Mailhog) for the reset email"
           },
           "response": []
         },
         {
-          "name": "Upload Profile Picture",
+          "name": "Reset Password with Token",
           "event": [
             {
               "listen": "test",
@@ -461,9 +1352,9 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
-                  "pm.test(\"Profile picture uploaded\", function () {",
+                  "pm.test(\"Password reset successful\", function () {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('profile_image_url');",
+                  "    pm.expect(jsonData.success).to.eql(true);",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -471,167 +1362,66 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
-            },
             "method": "POST",
             "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
               {
                 "key": "Accept",
                 "value": "application/json"
               }
             ],
             "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "profile_image",
-                  "type": "file",
-                  "src": []
-                }
-              ]
+              "mode": "raw",
+              "raw": "{\n    \"token\": \"{{password_reset_token}}\",\n    \"email\": \"{{test_email}}\",\n    \"password\": \"NewPassword123!\",\n    \"password_confirmation\": \"NewPassword123!\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/profile/profile-picture",
+              "raw": "{{base_url}}/password/reset",
               "host": ["{{base_url}}"],
-              "path": ["api", "profile", "profile-picture"]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Delete Profile Picture",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status code is 200\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
+              "path": ["password", "reset"]
             },
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/profile/profile-picture",
-              "host": ["{{base_url}}"],
-              "path": ["api", "profile", "profile-picture"]
-            }
+            "description": "Get the token from the email in Mailhog"
           },
           "response": []
         }
       ]
     },
     {
-      "name": "📄 Document Management",
+      "name": "9. Document Management",
       "item": [
         {
-          "name": "List Documents",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status code is 200\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "",
-                  "pm.test(\"Documents array returned\", function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('documents');",
-                  "    pm.expect(jsonData.documents).to.be.an('array');",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
+          "name": "Get User Documents",
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
-            },
             "method": "GET",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
               {
                 "key": "Accept",
                 "value": "application/json"
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/documents",
+              "raw": "{{base_url}}/documents",
               "host": ["{{base_url}}"],
-              "path": ["api", "documents"]
+              "path": ["documents"]
             }
           },
           "response": []
         },
         {
           "name": "Upload Document",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status code is 200\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "",
-                  "pm.test(\"Document uploaded\", function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.message).to.include('uploaded');",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
-            },
             "method": "POST",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
               {
                 "key": "Accept",
                 "value": "application/json"
@@ -641,103 +1431,44 @@
               "mode": "formdata",
               "formdata": [
                 {
-                  "key": "document_type",
-                  "value": "id_document",
-                  "type": "text"
-                },
-                {
-                  "key": "file",
+                  "key": "document",
                   "type": "file",
                   "src": []
                 },
                 {
-                  "key": "notes",
-                  "value": "Driver's license - front and back",
+                  "key": "type",
+                  "value": "certificate",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Gas Safety Certificate",
                   "type": "text"
                 }
               ]
             },
             "url": {
-              "raw": "{{base_url}}/api/documents",
+              "raw": "{{base_url}}/documents",
               "host": ["{{base_url}}"],
-              "path": ["api", "documents"]
+              "path": ["documents"]
             }
           },
           "response": []
         },
         {
           "name": "Download Document",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status code is 200\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
-            },
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/api/documents/1/download",
-              "host": ["{{base_url}}"],
-              "path": ["api", "documents", "1", "download"]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Delete Document",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status code is 204\", function () {",
-                  "    pm.response.to.have.status(204);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "DELETE",
             "header": [
               {
-                "key": "Accept",
-                "value": "application/json"
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/documents/1",
+              "raw": "{{base_url}}/documents/1/download",
               "host": ["{{base_url}}"],
-              "path": ["api", "documents", "1"]
+              "path": ["documents", "1", "download"]
             }
           },
           "response": []
@@ -745,10 +1476,10 @@
       ]
     },
     {
-      "name": "🔍 Search",
+      "name": "10. Activity Logs",
       "item": [
         {
-          "name": "Search Tradespersons",
+          "name": "Get All Activity Logs",
           "event": [
             {
               "listen": "test",
@@ -758,16 +1489,10 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
-                  "pm.test(\"Search results returned\", function () {",
+                  "pm.test(\"Activity logs returned\", function () {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('data');",
-                  "    pm.expect(jsonData.data).to.be.an('array');",
-                  "});",
-                  "",
-                  "pm.test(\"Pagination data present\", function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('current_page');",
-                  "    pm.expect(jsonData).to.have.property('total');",
+                  "    pm.expect(jsonData).to.have.property(\"data\");",
+                  "    pm.expect(jsonData.data).to.be.an(\"array\");",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -775,70 +1500,29 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
-            },
             "method": "GET",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
               {
                 "key": "Accept",
                 "value": "application/json"
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/search/tradespersons?skills[]=Plumbing&skills[]=Heating&postcode=SW1A 1AA&radius_miles=25&min_experience=5&sort_by=distance&per_page=15",
+              "raw": "{{base_url}}/activity-logs?per_page={{per_page}}&page={{page}}",
               "host": ["{{base_url}}"],
-              "path": ["api", "search", "tradespersons"],
+              "path": ["activity-logs"],
               "query": [
                 {
-                  "key": "skills[]",
-                  "value": "Plumbing"
-                },
-                {
-                  "key": "skills[]",
-                  "value": "Heating"
-                },
-                {
-                  "key": "postcode",
-                  "value": "SW1A 1AA"
-                },
-                {
-                  "key": "latitude",
-                  "value": "51.5074",
-                  "disabled": true
-                },
-                {
-                  "key": "longitude",
-                  "value": "-0.1278",
-                  "disabled": true
-                },
-                {
-                  "key": "radius_miles",
-                  "value": "25"
-                },
-                {
-                  "key": "min_experience",
-                  "value": "5"
-                },
-                {
-                  "key": "available_only",
-                  "value": "true",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_by",
-                  "value": "distance"
-                },
-                {
                   "key": "per_page",
-                  "value": "15"
+                  "value": "{{per_page}}"
+                },
+                {
+                  "key": "page",
+                  "value": "{{page}}"
                 }
               ]
             }
@@ -846,7 +1530,34 @@
           "response": []
         },
         {
-          "name": "Search Companies",
+          "name": "Get Single Activity Log",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/activity-logs/1",
+              "host": ["{{base_url}}"],
+              "path": ["activity-logs", "1"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "11. Logout & Token Management",
+      "item": [
+        {
+          "name": "Logout (Revoke Current Token)",
           "event": [
             {
               "listen": "test",
@@ -856,18 +1567,9 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
-                  "pm.test(\"Search results returned\", function () {",
+                  "pm.test(\"Logout successful\", function () {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('data');",
-                  "    pm.expect(jsonData.data).to.be.an('array');",
-                  "});",
-                  "",
-                  "pm.test(\"Company data structure\", function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    if (jsonData.data.length > 0) {",
-                  "        pm.expect(jsonData.data[0]).to.have.property('company');",
-                  "        pm.expect(jsonData.data[0].company).to.have.property('company_name');",
-                  "    }",
+                  "    pm.expect(jsonData.success).to.eql(true);",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -875,16 +1577,139 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/logout",
+              "host": ["{{base_url}}"],
+              "path": ["logout"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Logout All Devices",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/logout-all",
+              "host": ["{{base_url}}"],
+              "path": ["logout-all"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token (Mobile)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/token/refresh",
+              "host": ["{{base_url}}"],
+              "path": ["token", "refresh"]
             },
+            "description": "Mobile-only endpoint to refresh authentication token"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "12. Current User",
+      "item": [
+        {
+          "name": "Get Current User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"User data returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"user\");",
+                  "    pm.expect(jsonData.user).to.have.property(\"email\");",
+                  "    pm.expect(jsonData.user).to.have.property(\"uuid\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/user",
+              "host": ["{{base_url}}"],
+              "path": ["user"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User - No Auth (Fail)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test(\"Unauthenticated message returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(false);",
+                  "    pm.expect(jsonData.message).to.include(\"Unauthenticated\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
             "method": "GET",
             "header": [
               {
@@ -893,44 +1718,22 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/search/companies?services[]=Construction&services[]=Renovation&postcode=SW1A 1AA&radius_miles=25&company_size=51-200&verified_only=true&per_page=15",
+              "raw": "{{base_url}}/user",
               "host": ["{{base_url}}"],
-              "path": ["api", "search", "companies"],
-              "query": [
-                {
-                  "key": "services[]",
-                  "value": "Construction"
-                },
-                {
-                  "key": "services[]",
-                  "value": "Renovation"
-                },
-                {
-                  "key": "postcode",
-                  "value": "SW1A 1AA"
-                },
-                {
-                  "key": "radius_miles",
-                  "value": "25"
-                },
-                {
-                  "key": "company_size",
-                  "value": "51-200"
-                },
-                {
-                  "key": "verified_only",
-                  "value": "true"
-                },
-                {
-                  "key": "per_page",
-                  "value": "15"
-                }
-              ]
-            }
+              "path": ["user"]
+            },
+            "description": "Test accessing protected route without authentication"
           },
           "response": []
         }
       ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080/api",
+      "type": "string"
     }
   ]
 }

@@ -1,0 +1,2022 @@
+openapi: 3.0.3
+info:
+  title: UrProject Construction Recruitment API
+  description: |
+    Complete REST API for the UrProject Construction Recruitment Platform.
+
+    ## Authentication
+
+    The API uses Laravel Sanctum for authentication with a hybrid approach:
+    - **Token-based authentication** for mobile apps (React Native)
+    - **Session-based authentication** for web apps (React dashboard)
+
+    ### Token Authentication
+    Include the token in the Authorization header:
+    ```
+    Authorization: Bearer {token}
+    ```
+
+    ### Session Authentication
+    Web clients should first call `/sanctum/csrf-cookie` to get a CSRF token, then use standard cookie-based session authentication.
+
+    ## Features
+
+    - **Onboarding with KYC**: Worker and company registration with document upload to S3
+    - **Role-Based Access Control**: Tradesperson, Company, Admin, and Super Admin roles
+    - **Admin Verification**: Manual review and approval/rejection of KYC documents
+    - **Profile Management**: Update profiles with role protection and caching
+    - **Search & Discovery**: Public endpoints for searching tradespeople and companies
+    - **Document Management**: Upload and manage certificates and other documents
+    - **Activity Logging**: Comprehensive audit trail of all user actions
+
+    ## Rate Limiting
+
+    - Login: 5 requests per minute
+    - Registration/Onboarding: 3 requests per minute
+    - OTP: 6 requests per minute
+    - General API: 60 requests per minute
+
+  version: 1.0.0
+  contact:
+    name: UrProject Support
+    email: support@urproject.co.uk
+    url: https://urproject.co.uk
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:8080/api
+    description: Local development
+  - url: https://staging-api.urproject.co.uk/api
+    description: Staging environment
+  - url: https://api.urproject.co.uk/api
+    description: Production environment
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Onboarding
+    description: User onboarding with KYC document upload
+  - name: Authentication
+    description: Login, logout, and token management
+  - name: OTP
+    description: Phone verification via Twilio
+  - name: Profile
+    description: User profile management
+  - name: Admin Verification
+    description: Admin endpoints for KYC verification
+  - name: Search
+    description: Public search and discovery
+  - name: Password
+    description: Password reset and management
+  - name: Documents
+    description: Document upload and management
+  - name: Activity Logs
+    description: Activity logging and audit trail
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Basic health check
+      description: Returns the health status of the API
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /health/detailed:
+    get:
+      tags:
+        - Health
+      summary: Detailed health check
+      description: Returns detailed health status including database, Redis, and S3 connections
+      responses:
+        '200':
+          description: Detailed health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  checks:
+                    type: object
+                    properties:
+                      database:
+                        type: boolean
+                      redis:
+                        type: boolean
+                      storage:
+                        type: boolean
+
+  /onboarding/worker:
+    post:
+      tags:
+        - Onboarding
+      summary: Onboard a tradesperson/worker
+      description: |
+        Register a new tradesperson with KYC document upload. Documents are stored in S3 and queued for manual admin review.
+
+        **Required documents:**
+        - `kyc_document`: Government-issued ID, passport, or driver's license (max 5MB)
+
+        **Optional documents:**
+        - `selfie`: Selfie photo for identity verification (max 2MB)
+        - `portfolio_images`: Up to 10 portfolio images (max 2MB each)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - first_name
+                - last_name
+                - email
+                - phone
+                - password
+                - password_confirmation
+                - skills
+                - city
+                - postcode
+                - kyc_document
+              properties:
+                first_name:
+                  type: string
+                  example: John
+                last_name:
+                  type: string
+                  example: Smith
+                email:
+                  type: string
+                  format: email
+                  example: john.smith@example.com
+                phone:
+                  type: string
+                  pattern: ^\+[1-9]\d{1,14}$
+                  example: '+447700900000'
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: Password123!
+                password_confirmation:
+                  type: string
+                  format: password
+                  example: Password123!
+                bio:
+                  type: string
+                  example: Experienced plumber with 15 years in the industry
+                skills:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 1
+                  example: [Plumbing, Heating, Gas Safety]
+                hourly_rate:
+                  type: number
+                  format: float
+                  minimum: 0
+                  example: 45.00
+                city:
+                  type: string
+                  example: London
+                postcode:
+                  type: string
+                  example: SW1A 1AA
+                kyc_document:
+                  type: string
+                  format: binary
+                  description: Government-issued ID (PDF, JPG, PNG - max 5MB)
+                selfie:
+                  type: string
+                  format: binary
+                  description: Selfie photo (JPG, PNG - max 2MB)
+                portfolio_images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  maxItems: 10
+      responses:
+        '201':
+          description: Worker onboarded successfully, pending verification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /onboarding/company:
+    post:
+      tags:
+        - Onboarding
+      summary: Onboard a company
+      description: |
+        Register a new company with optional KYC documents. Documents are stored in S3.
+
+        **Optional documents:**
+        - `company_registration`: Company registration certificate
+        - `insurance_certificate`: Public liability insurance
+        - `tax_document`: Tax/VAT registration
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - first_name
+                - last_name
+                - email
+                - phone
+                - password
+                - password_confirmation
+                - company_name
+                - city
+                - postcode
+              properties:
+                first_name:
+                  type: string
+                  example: Jane
+                last_name:
+                  type: string
+                  example: Doe
+                email:
+                  type: string
+                  format: email
+                  example: jane.doe@company.com
+                phone:
+                  type: string
+                  example: '+447700900001'
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                password_confirmation:
+                  type: string
+                  format: password
+                company_name:
+                  type: string
+                  example: ABC Construction Ltd
+                company_type:
+                  type: string
+                  enum: [limited, sole_trader, partnership, llp]
+                  example: limited
+                company_registration_number:
+                  type: string
+                  example: '12345678'
+                registered_address:
+                  type: string
+                  example: 123 Business Street
+                city:
+                  type: string
+                  example: London
+                postcode:
+                  type: string
+                  example: SW1A 1AA
+                company_email:
+                  type: string
+                  format: email
+                company_phone:
+                  type: string
+                company_website:
+                  type: string
+                  format: uri
+                description:
+                  type: string
+                company_registration:
+                  type: string
+                  format: binary
+                insurance_certificate:
+                  type: string
+                  format: binary
+                tax_document:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Company onboarded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /onboarding/status:
+    get:
+      tags:
+        - Onboarding
+      summary: Get onboarding status
+      description: Get the current onboarding and verification status for the authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Onboarding status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [pending, approved, rejected, incomplete]
+                  verification_status:
+                    type: string
+                    enum: [pending_verification, verified, rejected]
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and receive access token (mobile) or session cookie (web)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: john.smith@example.com
+                password:
+                  type: string
+                  format: password
+                  example: Password123!
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  token:
+                    type: string
+                    example: '1|abc123...'
+                  user:
+                    $ref: '#/components/schemas/User'
+        '422':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: These credentials do not match our records
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /logout:
+    post:
+      tags:
+        - Authentication
+      summary: Logout current device
+      description: Revoke the current access token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Logged out successfully
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /logout-all:
+    post:
+      tags:
+        - Authentication
+      summary: Logout all devices
+      description: Revoke all access tokens for this user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out from all devices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Logged out from all devices
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /user:
+    get:
+      tags:
+        - Authentication
+      summary: Get current authenticated user
+      description: Returns the currently authenticated user's information
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User data retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /otp/send:
+    post:
+      tags:
+        - OTP
+      summary: Send OTP code
+      description: Send OTP verification code via Twilio SMS
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+                - purpose
+              properties:
+                phone:
+                  type: string
+                  pattern: ^\+[1-9]\d{1,14}$
+                  example: '+447700900000'
+                purpose:
+                  type: string
+                  enum: [phone_verification, password_reset]
+                  example: phone_verification
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: OTP sent successfully
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /otp/verify:
+    post:
+      tags:
+        - OTP
+      summary: Verify OTP code
+      description: Verify OTP code sent via SMS
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+                - code
+                - purpose
+              properties:
+                phone:
+                  type: string
+                  example: '+447700900000'
+                code:
+                  type: string
+                  example: '123456'
+                purpose:
+                  type: string
+                  enum: [phone_verification, password_reset]
+                  example: phone_verification
+      responses:
+        '200':
+          description: OTP verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Phone verified successfully
+        '422':
+          description: Invalid or expired OTP
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Invalid or expired OTP code
+
+  /profile:
+    get:
+      tags:
+        - Profile
+      summary: Get current user's profile
+      description: Get the authenticated user's full profile information
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /profile/{id}:
+    get:
+      tags:
+        - Profile
+      summary: Get public profile by ID
+      description: |
+        Get public profile information for any user by ID. Results are cached for 1 hour.
+        This is a Sprint requirement for performance optimization.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+      responses:
+        '200':
+          description: Profile retrieved from cache or database
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+
+  /profile/tradesperson:
+    put:
+      tags:
+        - Profile
+      summary: Update tradesperson profile
+      description: Update tradesperson profile information. Updates both User and Tradesperson data. Only accessible to authenticated tradesperson users.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                first_name:
+                  type: string
+                  maxLength: 255
+                last_name:
+                  type: string
+                  maxLength: 255
+                phone:
+                  type: string
+                  maxLength: 20
+                bio:
+                  type: string
+                  maxLength: 1000
+                  nullable: true
+                skills:
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 255
+                  nullable: true
+                certifications:
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 255
+                  nullable: true
+                years_experience:
+                  type: integer
+                  minimum: 0
+                  maximum: 70
+                  nullable: true
+                city:
+                  type: string
+                  maxLength: 255
+                  nullable: true
+                county:
+                  type: string
+                  maxLength: 255
+                  nullable: true
+                postcode:
+                  type: string
+                  maxLength: 10
+                  nullable: true
+                service_radius_miles:
+                  type: integer
+                  minimum: 1
+                  maximum: 200
+                  nullable: true
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Profile updated successfully
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a tradesperson
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: This endpoint is only for tradespersons
+
+  /profile/company:
+    put:
+      tags:
+        - Profile
+      summary: Update company profile
+      description: Update company profile information. Updates both User and Company data. Only accessible to authenticated company users.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                first_name:
+                  type: string
+                  maxLength: 255
+                last_name:
+                  type: string
+                  maxLength: 255
+                phone:
+                  type: string
+                  maxLength: 20
+                company_name:
+                  type: string
+                  maxLength: 255
+                trading_name:
+                  type: string
+                  maxLength: 255
+                  nullable: true
+                company_email:
+                  type: string
+                  format: email
+                  maxLength: 255
+                  nullable: true
+                company_phone:
+                  type: string
+                  maxLength: 20
+                  nullable: true
+                website:
+                  type: string
+                  format: uri
+                  maxLength: 255
+                  nullable: true
+                registered_address:
+                  type: string
+                  maxLength: 500
+                trading_address:
+                  type: string
+                  maxLength: 500
+                  nullable: true
+                city:
+                  type: string
+                  maxLength: 255
+                county:
+                  type: string
+                  maxLength: 255
+                  nullable: true
+                postcode:
+                  type: string
+                  maxLength: 10
+                description:
+                  type: string
+                  maxLength: 1000
+                  nullable: true
+                company_size:
+                  type: string
+                  enum: [1-10, 11-50, 51-200, 201-500, 500+]
+                  nullable: true
+                annual_turnover:
+                  type: number
+                  minimum: 0
+                  nullable: true
+                services_offered:
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 255
+                  nullable: true
+                specializations:
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 255
+                  nullable: true
+      responses:
+        '200':
+          description: Company profile updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Profile updated successfully
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not a company
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: This endpoint is only for companies
+
+  /admin/pending-verifications:
+    get:
+      tags:
+        - Admin Verification
+      summary: Get pending KYC verifications
+      description: |
+        Get paginated list of users awaiting KYC verification.
+        Requires 'super_admin' or 'admin' role and 'view pending verifications' permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
+            maximum: 100
+      responses:
+        '200':
+          description: Pending verifications retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  current_page:
+                    type: integer
+                  total:
+                    type: integer
+                  per_page:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /admin/verifications/{userId}:
+    get:
+      tags:
+        - Admin Verification
+      summary: Get verification details
+      description: |
+        Get detailed verification information for a specific user, including signed URLs to view KYC documents.
+        Signed URLs are valid for 2 hours.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Verification details retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  documents:
+                    type: object
+                    properties:
+                      kyc_document:
+                        type: object
+                        properties:
+                          url:
+                            type: string
+                            format: uri
+                            description: Signed URL valid for 2 hours
+                          filename:
+                            type: string
+                      selfie:
+                        type: object
+                        properties:
+                          url:
+                            type: string
+                            format: uri
+                          filename:
+                            type: string
+        '404':
+          description: User not found
+
+  /admin/verify/{userId}:
+    patch:
+      tags:
+        - Admin Verification
+      summary: Approve KYC verification
+      description: |
+        Approve a user's KYC verification. User will receive email notification.
+        Requires 'approve verifications' permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+                  example: All documents verified. Approved for platform access.
+      responses:
+        '200':
+          description: Verification approved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: User verification approved successfully
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          description: User not found
+
+  /admin/reject/{userId}:
+    patch:
+      tags:
+        - Admin Verification
+      summary: Reject KYC verification
+      description: |
+        Reject a user's KYC verification with reason. User will receive email notification with rejection details.
+        Requires 'reject verifications' permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  example: Document quality insufficient. Please re-upload clearer images.
+                required_documents:
+                  type: array
+                  items:
+                    type: string
+                    enum: [kyc_document, selfie, company_registration, insurance_certificate]
+                  example: [kyc_document, selfie]
+      responses:
+        '200':
+          description: Verification rejected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: User verification rejected
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /search/tradespersons:
+    get:
+      tags:
+        - Search
+      summary: Search tradespeople
+      description: Public endpoint to search for verified tradespeople by skills and location
+      parameters:
+        - name: skill
+          in: query
+          schema:
+            type: string
+          example: Plumbing
+        - name: city
+          in: query
+          schema:
+            type: string
+          example: London
+        - name: postcode
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
+            maximum: 50
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TradespersonSearchResult'
+                  current_page:
+                    type: integer
+                  total:
+                    type: integer
+
+  /search/tradespersons/{uuid}:
+    get:
+      tags:
+        - Search
+      summary: Get tradesperson public profile
+      description: Get public profile of a tradesperson by UUID
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Tradesperson profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tradesperson:
+                    $ref: '#/components/schemas/TradespersonProfileResult'
+        '404':
+          description: Tradesperson not found
+
+  /search/companies:
+    get:
+      tags:
+        - Search
+      summary: Search for companies
+      description: |
+        Search for companies with filters for services, location, company size, and verification status.
+        Returns paginated results with combined User + Company data.
+      parameters:
+        - name: services
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+          description: Filter by services offered (JSON array)
+        - name: postcode
+          in: query
+          schema:
+            type: string
+            maxLength: 10
+          description: UK postcode for location-based search
+        - name: latitude
+          in: query
+          schema:
+            type: number
+            minimum: -90
+            maximum: 90
+          description: Latitude for location-based search
+        - name: longitude
+          in: query
+          schema:
+            type: number
+            minimum: -180
+            maximum: 180
+          description: Longitude for location-based search
+        - name: radius_miles
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 25
+          description: Search radius in miles
+        - name: company_size
+          in: query
+          schema:
+            type: string
+            enum: [1-10, 11-50, 51-200, 201-500, 500+]
+          description: Filter by company size
+        - name: verified_only
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Only show verified companies
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 15
+          description: Results per page
+      responses:
+        '200':
+          description: Companies found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CompanySearchResult'
+                  current_page:
+                    type: integer
+                  total:
+                    type: integer
+
+  /search/companies/{uuid}:
+    get:
+      tags:
+        - Search
+      summary: Get company public profile
+      description: Get public profile of a company by UUID
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Company profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  company:
+                    $ref: '#/components/schemas/CompanyProfileResult'
+        '404':
+          description: Company not found
+
+  /password/forgot:
+    post:
+      tags:
+        - Password
+      summary: Request password reset
+      description: Send password reset link via email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Reset link sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Password reset link sent to your email
+
+  /password/reset:
+    post:
+      tags:
+        - Password
+      summary: Reset password with token
+      description: Reset password using token from email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - email
+                - password
+                - password_confirmation
+              properties:
+                token:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                password_confirmation:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Password reset successfully
+
+  /documents:
+    get:
+      tags:
+        - Documents
+      summary: Get user documents
+      description: Get list of documents uploaded by the authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Documents retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Document'
+    post:
+      tags:
+        - Documents
+      summary: Upload document
+      description: Upload a new document (certificate, qualification, etc.)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - document
+                - type
+              properties:
+                document:
+                  type: string
+                  format: binary
+                type:
+                  type: string
+                  enum: [certificate, qualification, insurance, other]
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Document uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+
+  /documents/{id}/download:
+    get:
+      tags:
+        - Documents
+      summary: Download document
+      description: Get a signed URL to download a document
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Document download URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                    description: Signed URL valid for 1 hour
+
+  /activity-logs:
+    get:
+      tags:
+        - Activity Logs
+      summary: Get activity logs
+      description: Get paginated list of activity logs with optional filters
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
+        - name: log_name
+          in: query
+          schema:
+            type: string
+        - name: causer_id
+          in: query
+          schema:
+            type: integer
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Activity logs retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ActivityLog'
+                  current_page:
+                    type: integer
+                  total:
+                    type: integer
+
+  /activity-logs/{id}:
+    get:
+      tags:
+        - Activity Logs
+      summary: Get single activity log
+      description: Get detailed information about a specific activity log entry
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Activity log retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityLog'
+        '404':
+          description: Activity log not found
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Laravel Sanctum token authentication
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        uuid:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        user_type:
+          type: string
+          enum: [tradesperson, company, super_admin]
+        verification_status:
+          type: string
+          enum: [pending_verification, verified, rejected]
+        email_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        phone_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        userable:
+          oneOf:
+            - $ref: '#/components/schemas/Tradesperson'
+            - $ref: '#/components/schemas/Company'
+
+    Tradesperson:
+      type: object
+      description: Tradesperson-specific profile data (polymorphic - no user_id)
+      properties:
+        id:
+          type: integer
+        bio:
+          type: string
+          nullable: true
+        skills:
+          type: array
+          items:
+            type: string
+        certifications:
+          type: array
+          items:
+            type: string
+        years_experience:
+          type: integer
+          nullable: true
+        hourly_rate:
+          type: number
+          format: float
+          nullable: true
+        daily_rate:
+          type: number
+          format: float
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        postcode:
+          type: string
+        latitude:
+          type: number
+          format: float
+          nullable: true
+        longitude:
+          type: number
+          format: float
+          nullable: true
+        service_radius_miles:
+          type: integer
+        verification_status:
+          type: string
+          enum: [pending, in_review, verified, rejected]
+        average_rating:
+          type: number
+          format: float
+          nullable: true
+        portfolio:
+          type: array
+          items:
+            type: string
+          nullable: true
+        availability:
+          type: object
+          nullable: true
+
+    Company:
+      type: object
+      description: Company-specific profile data (polymorphic - no user_id)
+      properties:
+        id:
+          type: integer
+        company_name:
+          type: string
+        trading_name:
+          type: string
+          nullable: true
+        company_registration_number:
+          type: string
+          nullable: true
+        vat_number:
+          type: string
+          nullable: true
+        company_type:
+          type: string
+          enum: [sole_trader, partnership, limited, plc]
+        registered_address:
+          type: string
+          nullable: true
+        trading_address:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        county:
+          type: string
+          nullable: true
+        postcode:
+          type: string
+          nullable: true
+        country:
+          type: string
+          default: United Kingdom
+        latitude:
+          type: number
+          format: float
+          nullable: true
+        longitude:
+          type: number
+          format: float
+          nullable: true
+        company_email:
+          type: string
+          format: email
+          nullable: true
+        company_phone:
+          type: string
+          nullable: true
+        website:
+          type: string
+          format: uri
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        company_size:
+          type: string
+          enum: [1-10, 11-50, 51-200, 201-500, 500+]
+          nullable: true
+        annual_turnover:
+          type: number
+          format: float
+          nullable: true
+        services_offered:
+          type: array
+          items:
+            type: string
+          nullable: true
+        specializations:
+          type: array
+          items:
+            type: string
+          nullable: true
+        logo_path:
+          type: string
+          nullable: true
+        verification_status:
+          type: string
+          enum: [pending, in_review, verified, rejected]
+        average_rating:
+          type: number
+          format: float
+          nullable: true
+        total_projects:
+          type: integer
+          default: 0
+        completed_projects:
+          type: integer
+          default: 0
+
+    TradespersonSearchResult:
+      type: object
+      description: Combined User + Tradesperson data returned by search endpoints
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        profile_image:
+          type: string
+          nullable: true
+        account_status:
+          type: string
+          enum: [pending_verification, active, suspended, deleted]
+        bio:
+          type: string
+          nullable: true
+        skills:
+          type: array
+          items:
+            type: string
+        certifications:
+          type: array
+          items:
+            type: string
+        years_experience:
+          type: integer
+          nullable: true
+        hourly_rate:
+          type: number
+          format: float
+          nullable: true
+        daily_rate:
+          type: number
+          format: float
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        postcode:
+          type: string
+        service_radius_miles:
+          type: integer
+        verification_status:
+          type: string
+          enum: [pending, in_review, verified, rejected]
+        average_rating:
+          type: number
+          format: float
+          nullable: true
+        distance:
+          type: number
+          format: float
+          nullable: true
+          description: Distance in miles from search location
+
+    CompanySearchResult:
+      type: object
+      description: Combined User + Company data returned by search endpoints
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        profile_image:
+          type: string
+          nullable: true
+        account_status:
+          type: string
+          enum: [pending_verification, active, suspended, deleted]
+        company_name:
+          type: string
+        trading_name:
+          type: string
+          nullable: true
+        company_email:
+          type: string
+          format: email
+          nullable: true
+        company_phone:
+          type: string
+          nullable: true
+        website:
+          type: string
+          format: uri
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        county:
+          type: string
+          nullable: true
+        postcode:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        company_size:
+          type: string
+          enum: [1-10, 11-50, 51-200, 201-500, 500+]
+          nullable: true
+        services_offered:
+          type: array
+          items:
+            type: string
+        specializations:
+          type: array
+          items:
+            type: string
+        verification_status:
+          type: string
+          enum: [pending, in_review, verified, rejected]
+        logo_path:
+          type: string
+          nullable: true
+        average_rating:
+          type: number
+          format: float
+          nullable: true
+        total_projects:
+          type: integer
+        completed_projects:
+          type: integer
+        distance:
+          type: number
+          format: float
+          nullable: true
+          description: Distance in miles from search location
+
+    TradespersonProfileResult:
+      type: object
+      description: Combined User + Tradesperson data returned by public profile endpoint
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        profile_image:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        skills:
+          type: array
+          items:
+            type: string
+        certifications:
+          type: array
+          items:
+            type: string
+        years_experience:
+          type: integer
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        postcode:
+          type: string
+          nullable: true
+        average_rating:
+          type: number
+          format: float
+          default: 0
+
+    CompanyProfileResult:
+      type: object
+      description: Combined User + Company data returned by public profile endpoint
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        profile_image:
+          type: string
+          nullable: true
+        company_name:
+          type: string
+          nullable: true
+        trading_name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        county:
+          type: string
+          nullable: true
+        postcode:
+          type: string
+          nullable: true
+        website:
+          type: string
+          nullable: true
+        services_offered:
+          type: array
+          items:
+            type: string
+        specializations:
+          type: array
+          items:
+            type: string
+        company_size:
+          type: string
+          nullable: true
+        logo_path:
+          type: string
+          nullable: true
+        verification_status:
+          type: string
+          enum: [pending, in_review, verified, rejected]
+          default: pending
+        average_rating:
+          type: number
+          format: float
+          default: 0
+        total_projects:
+          type: integer
+          default: 0
+        completed_projects:
+          type: integer
+          default: 0
+
+    OnboardingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Registration successful. Your account is pending verification.
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: string
+          description: Access token (mobile only)
+
+    Document:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        type:
+          type: string
+        filename:
+          type: string
+        path:
+          type: string
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    ActivityLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        log_name:
+          type: string
+        description:
+          type: string
+        subject_type:
+          type: string
+        subject_id:
+          type: integer
+        causer_type:
+          type: string
+        causer_id:
+          type: integer
+        properties:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: Unauthenticated
+
+    ForbiddenError:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: This action is unauthorized
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    RateLimitError:
+      description: Too many requests
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: Too many requests
+              retry_after:
+                type: integer
+                description: Seconds until rate limit resets
+
+security:
+  - bearerAuth: []
