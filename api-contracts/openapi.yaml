@@ -159,55 +159,55 @@ paths:
                 - password_confirmation
                 - company_name
                 - trading_name
-                - company_number
+                - company_registration_number
               properties:
                 first_name:
                   type: string
                   maxLength: 255
                   example: Jane
-                  description: User's first name
+                  description: (Required) User's first name
                 last_name:
                   type: string
                   maxLength: 255
                   example: Doe
-                  description: User's last name
+                  description: (Required) User's last name
                 email:
                   type: string
                   format: email
                   maxLength: 255
                   example: jane.doe@company.com
-                  description: User's email (must be unique)
+                  description: (Required) User's email (must be unique)
                 phone:
                   type: string
                   maxLength: 20
                   example: '+447700900001'
-                  description: User's phone number (must be unique)
+                  description: (Required) User's phone number (must be unique)
                 password:
                   type: string
                   format: password
                   minLength: 8
                   example: Password123!@
-                  description: Must contain uppercase, lowercase, number, and special character
+                  description: (Required) Must contain uppercase, lowercase, number, and special character
                 password_confirmation:
                   type: string
                   format: password
                   example: Password123!@
-                  description: Must match password
+                  description: (Required) Must match password
                 company_name:
                   type: string
                   maxLength: 255
                   example: ABC Construction Ltd
-                  description: Legal company name
+                  description: (Required) Legal company name
                 trading_name:
                   type: string
                   maxLength: 255
                   example: ABC Builders
-                  description: Trading name (DBA)
-                company_number:
+                  description: (Required) Trading name (DBA)
+                company_registration_number:
                   type: string
                   maxLength: 50
                   example: '01856488'
-                  description: Company registration number (must be unique)
+                  description: (Required) Company registration number (must be unique)
                 vat_number:
                   type: string
                   maxLength: 50
@@ -1395,7 +1395,7 @@ paths:
                         type: string
                         nullable: true
                         example: ABC Builders
-                      company_number:
+                      company_registration_number:
                         type: string
                         example: "01856488"
                       vat_number:
@@ -1536,7 +1536,7 @@ paths:
                   nullable: true
                   example: ABC Builders
                   description: (Optional) Trading name (DBA)
-                company_number:
+                company_registration_number:
                   type: string
                   maxLength: 50
                   example: "01856488"

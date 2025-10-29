@@ -124,7 +124,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"first_name\": \"Jane\",\n    \"last_name\": \"Doe\",\n    \"email\": \"jane.doe.{{$timestamp}}@company.com\",\n    \"phone\": \"+447700900{{$timestamp}}\",\n    \"password\": \"Password123!@\",\n    \"password_confirmation\": \"Password123!@\",\n    \"company_name\": \"ABC Construction Ltd\",\n    \"trading_name\": \"ABC Builders\",\n    \"company_number\": \"01856488\",\n    \"vat_number\": \"GB123456789\"\n}"
+              "raw": "{\n    \"first_name\": \"Jane\",\n    \"last_name\": \"Doe\",\n    \"email\": \"jane.doe.{{$timestamp}}@company.com\",\n    \"phone\": \"+447700900{{$timestamp}}\",\n    \"password\": \"Password123!@\",\n    \"password_confirmation\": \"Password123!@\",\n    \"company_name\": \"ABC Construction Ltd\",\n    \"trading_name\": \"ABC Builders\",\n    \"company_registration_number\": \"01856488\",\n    \"vat_number\": \"GB123456789\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/register/company",
@@ -1261,7 +1261,7 @@
                   "description": "(Optional) Trading name (DBA)"
                 },
                 {
-                  "key": "company_number",
+                  "key": "company_registration_number",
                   "value": "01856488",
                   "type": "text",
                   "description": "(Optional) Company registration number - must be unique"
