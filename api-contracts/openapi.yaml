@@ -160,6 +160,9 @@ paths:
                 - company_name
                 - trading_name
                 - company_registration_number
+                - registered_address
+                - city
+                - postcode
               properties:
                 first_name:
                   type: string
@@ -213,7 +216,34 @@ paths:
                   maxLength: 50
                   nullable: true
                   example: 'GB123456789'
-                  description: VAT registration number (optional)
+                  description: (Optional) VAT registration number
+                registered_address:
+                  type: string
+                  maxLength: 500
+                  example: '123 Business Street'
+                  description: (Required) Registered business address
+                city:
+                  type: string
+                  maxLength: 255
+                  example: 'London'
+                  description: (Required) City
+                postcode:
+                  type: string
+                  maxLength: 10
+                  example: 'EC2A 2BB'
+                  description: (Required) Postcode
+                county:
+                  type: string
+                  maxLength: 255
+                  nullable: true
+                  example: 'Greater London'
+                  description: (Optional) County
+                country:
+                  type: string
+                  maxLength: 255
+                  nullable: true
+                  example: 'United Kingdom'
+                  description: (Optional) Country (defaults to United Kingdom)
       responses:
         '201':
           description: Company registered successfully
@@ -1056,7 +1086,7 @@ paths:
           description: User not found
 
   /profile/user:
-    put:
+    post:
       tags:
         - Profile
       summary: Update user profile
@@ -1070,9 +1100,11 @@ paths:
 
         **Profile image:** Upload new profile image (old image automatically deleted).
 
+        **Note:** Uses POST instead of PUT to support multipart/form-data file uploads (Laravel limitation with PUT/PATCH).
+
         This endpoint handles ALL user-level data. For role-specific data, use:
-        - PUT /profile/tradesperson (for tradesperson-specific data)
-        - PUT /profile/company (for company-specific data)
+        - POST /profile/tradesperson (for tradesperson-specific data)
+        - POST /profile/company (for company-specific data)
       security:
         - bearerAuth: []
       requestBody:
@@ -1260,7 +1292,7 @@ paths:
                   message:
                     type: string
                     example: This endpoint is only for tradespeople
-    put:
+    post:
       tags:
         - Profile
       summary: Update tradesperson profile
@@ -1268,7 +1300,7 @@ paths:
         Update tradesperson-specific profile information (bio, skills, location, service radius).
         Only accessible to authenticated tradesperson users.
 
-        **Note:** To update user data (first_name, last_name, phone, notifications), use PUT /profile/user instead.
+        **Note:** To update user data (first_name, last_name, phone, notifications), use POST /profile/user instead.
 
         All fields are optional. Automatically triggers geocoding when postcode changes.
       security:
@@ -1499,7 +1531,7 @@ paths:
                   message:
                     type: string
                     example: This endpoint is only for companies
-    put:
+    post:
       tags:
         - Profile
       summary: Update company profile
@@ -1507,13 +1539,15 @@ paths:
         Update company-specific profile information including logo upload.
         Only accessible to authenticated company users.
 
-        **Note:** To update user data (first_name, last_name, phone, notifications), use PUT /profile/user instead.
+        **Note:** To update user data (first_name, last_name, phone, notifications), use POST /profile/user instead.
+
+        **Note:** Uses POST instead of PUT to support multipart/form-data file uploads (Laravel limitation with PUT/PATCH).
 
         **Supports all fields from Edit Company screen:**
         - Basic info (name, trading name, company number, VAT)
         - Address (with automatic geocoding when changed)
         - Company details (size, bio, services, specializations)
-        - Logo upload (replaces existing if present)
+        - Logo upload (replaces existing if present, optimized to 512x512 PNG, stored on S3)
 
         All fields are optional. Requires multipart/form-data for logo upload.
       security:
