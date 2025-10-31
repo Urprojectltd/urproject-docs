@@ -124,7 +124,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"first_name\": \"Jane\",\n    \"last_name\": \"Doe\",\n    \"email\": \"jane.doe.{{$timestamp}}@company.com\",\n    \"phone\": \"+447700900{{$timestamp}}\",\n    \"password\": \"Password123!@\",\n    \"password_confirmation\": \"Password123!@\",\n    \"company_name\": \"ABC Construction Ltd\",\n    \"trading_name\": \"ABC Builders\",\n    \"company_registration_number\": \"01856488\",\n    \"vat_number\": \"GB123456789\"\n}"
+              "raw": "{\n    \"first_name\": \"Jane\",\n    \"last_name\": \"Doe\",\n    \"email\": \"jane.doe.{{$timestamp}}@company.com\",\n    \"phone\": \"+447700900{{$timestamp}}\",\n    \"password\": \"Password123!@\",\n    \"password_confirmation\": \"Password123!@\",\n    \"company_name\": \"ABC Construction Ltd\",\n    \"trading_name\": \"ABC Builders\",\n    \"company_registration_number\": \"01856488\",\n    \"vat_number\": \"GB123456789\",\n    \"registered_address\": \"123 Business Street\",\n    \"city\": \"London\",\n    \"postcode\": \"EC2A 2BB\",\n    \"county\": \"Greater London\",\n    \"country\": \"United Kingdom\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/register/company",
@@ -980,7 +980,7 @@
             }
           ],
           "request": {
-            "method": "PUT",
+            "method": "POST",
             "header": [
               {
                 "key": "Authorization",
@@ -1071,7 +1071,7 @@
               "host": ["{{base_url}}"],
               "path": ["profile", "user"]
             },
-            "description": "Update user profile including name, email, phone, password, profile image, and notification preferences. All fields (Optional). To change password, include current_password, password, and password_confirmation. Available to all authenticated users."
+            "description": "Update user profile including name, email, phone, password, profile image, and notification preferences. All fields (Optional). To change password, include current_password, password, and password_confirmation. Available to all authenticated users. Uses POST instead of PUT to support file uploads with multipart/form-data."
           },
           "response": []
         },
@@ -1139,7 +1139,7 @@
             }
           ],
           "request": {
-            "method": "PUT",
+            "method": "POST",
             "header": [
               {
                 "key": "Authorization",
@@ -1163,7 +1163,7 @@
               "host": ["{{base_url}}"],
               "path": ["profile", "tradesperson"]
             },
-            "description": "Update tradesperson-specific profile data (bio, skills, location, service radius). Only accessible to users with 'tradesperson' role. All fields (Optional). To update user data (first_name, last_name, phone), use PUT /profile/user."
+            "description": "Update tradesperson-specific profile data (bio, skills, location, service radius). Only accessible to users with 'tradesperson' role. All fields (Optional). To update user data (first_name, last_name, phone), use POST /profile/user."
           },
           "response": []
         },
@@ -1234,7 +1234,7 @@
             }
           ],
           "request": {
-            "method": "PUT",
+            "method": "POST",
             "header": [
               {
                 "key": "Authorization",
@@ -1387,7 +1387,7 @@
               "host": ["{{base_url}}"],
               "path": ["profile", "company"]
             },
-            "description": "Update company-specific profile fields including logo upload. Only accessible to users with 'company' role. All fields (Optional). To update user data (first_name, last_name, phone), use PUT /profile/user. Supports multipart/form-data for logo upload. Handles automatic geocoding when address/country changes."
+            "description": "Update company-specific profile fields including logo upload. Only accessible to users with 'company' role. All fields (Optional). To update user data (first_name, last_name, phone), use POST /profile/user. Supports multipart/form-data for logo upload. Handles automatic geocoding when address/country changes. Logo is optimized to 512x512 PNG and stored on S3."
           },
           "response": []
         },
